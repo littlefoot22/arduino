@@ -25,6 +25,7 @@
 int brightness = 0;    // how bright the LED is
 int fadeAmount = 5;    // how many points to fade the LED by
 int mode = 0;
+int delayed = 0;
 // the setup function runs once when you press reset or power the board
 void setup() {
   // initialize digital pin LED_BUILTIN as an output.
@@ -32,25 +33,38 @@ void setup() {
    // initialize digital pin LED_BUILTIN as an output.
   //pinMode(1, OUTPUT);
   randomSeed(analogRead(1));
-  mode = random(2);
+    mode = random(4);
 }
 
 // the loop function runs over and over again forever
 void loop() {
   // print a random number from 0 to 299
   //int randNumber = random(300);
+
+  if (delayed > 3000) {
+    mode = random(4);
+    delayed = 0;
+  }
+
   switch (mode) {
-    case 0:
+     case 0:
+      delayed = delayed + 50;
+      digitalWrite(0, HIGH);   // turn the LED on (HIGH is the voltage level)
+      delay(25);               // wait for a second
+      digitalWrite(0, LOW);    // turn the LED off by making the voltage LOW
+      delay(25);               // wait for a second
+      break;
+    case 1:
+      delayed = delayed + 1000;
       digitalWrite(0, HIGH);   // turn the LED on (HIGH is the voltage level)
       delay(500);               // wait for a second
       digitalWrite(0, LOW);    // turn the LED off by making the voltage LOW
       delay(500);               // wait for a second
       break;
-    case 1:
+    case 2:
+      delayed = delayed + 5;
       // set the brightness of pin 9:
       analogWrite(0, brightness);
-      analogWrite(1, brightness);
-
       // change the brightness for next time through the loop:
       brightness = brightness + fadeAmount;
 
@@ -60,6 +74,18 @@ void loop() {
       }
       // wait for 30 milliseconds to see the dimming effect
       delay(30);                  // wait for a second
+      break;
+     case 3:
+      delayed = delayed + 6000;
+      digitalWrite(0, LOW);   // turn the LED on (HIGH is the voltage level)
+      delay(3000);
+      break;
+     case 4:
+      delayed = delayed + 500;
+      digitalWrite(0, HIGH);   // turn the LED on (HIGH is the voltage level)
+      delay(250);               // wait for a second
+      digitalWrite(0, LOW);    // turn the LED off by making the voltage LOW
+      delay(250);               // wait for a second
       break;
   }
 }
