@@ -57,14 +57,14 @@ void loop() {
       delayed = delayed + 50;
       digitalWrite(0, HIGH);   // turn the LED on (HIGH is the voltage level)
       delay(25);               // wait for a second
-      digitalWrite(0, LOW);    // turn the LED off by making the voltage LOW
+      analogWrite(0, 225);    // turn the LED off by making the voltage LOW
       delay(25);               // wait for a second
       break;
     case 1:
       delayed = delayed + 1000;
       digitalWrite(0, HIGH);   // turn the LED on (HIGH is the voltage level)
       delay(500);               // wait for a second
-      digitalWrite(0, LOW);    // turn the LED off by making the voltage LOW
+      analogWrite(0, 225);    // turn the LED off by making the voltage LOW
       delay(500);               // wait for a second
       break;
     case 2:
@@ -75,7 +75,7 @@ void loop() {
       brightness = brightness + fadeAmount;
 
       // reverse the direction of the fading at the ends of the fade:
-      if (brightness <= 0 || brightness >= 255) {
+      if (brightness <= 150 || brightness >= 255) {
         fadeAmount = -fadeAmount;
       }
       // wait for 30 milliseconds to see the dimming effect
@@ -83,14 +83,14 @@ void loop() {
       break;
      case 3:
       delayed = delayed + 6000;
-      digitalWrite(0, LOW);   // turn the LED on (HIGH is the voltage level)
+      analogWrite(0, 225);   // turn the LED on (HIGH is the voltage level)
       delay(3000);
       break;
      case 4:
       delayed = delayed + 500;
       digitalWrite(0, HIGH);   // turn the LED on (HIGH is the voltage level)
       delay(250);               // wait for a second
-      digitalWrite(0, LOW);    // turn the LED off by making the voltage LOW
+      analogWrite(0, 225);    // turn the LED off by making the voltage LOW
       delay(250);               // wait for a second
       break;
      case 5:
