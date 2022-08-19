@@ -33,7 +33,7 @@ void loop()
       Serial.write(BTSerial.read());
     }
     
-    Serial.println("AT+ROLE=1");
+    Serial.println("AT+ROLE=0");
     BTSerial.write("AT+ROLE=0\r\n");
     delay(500); // wait for change
     while(BTSerial.available()) {
