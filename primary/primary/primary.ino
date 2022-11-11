@@ -32,10 +32,10 @@ void loop()
   delay(500); // wait for change
   if (buttonState == HIGH) {
     // turn LED on:
-    //Serial.println("HIGH");
+    Serial.println("HIGH");
   } else {
     // turn LED off:
-   // Serial.println("LOW");
+    Serial.println("LOW");
   }  
 
   if (!master) { 
