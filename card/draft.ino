@@ -52,9 +52,19 @@ int charge_5 = 0;
 
 int charge_cache = 4;
 
+int red_combine_1 = 0;
+int blue_combine_1 = 0;
+int green_combine_1 = 0;
+
+int[] red = {}
+
+
+      int r = 226, g = 121, b = 35;
+
 
 bool push = false;
 
+bool combine = false;
 
 void setup() {
   pixels.begin();
@@ -81,11 +91,68 @@ void setup() {
 void loop() {
   if (charge_cache != -1) {
     run_charge();
+    run_change();
   } else {
+    run_change();
     run_color_combine(0);
   }
   run_flame(0);
 
+}
+
+
+void run_change() {
+    unsigned long currentMillis = millis();
+
+  
+  if (currentMillis - previousMillis_charge >= delay_interval_1000) {
+    previousMillis_charge = currentMillis;
+    pixelHue = firstPixelHue + (rainbow_i * 65536L / strip.numPixels());
+    //Serial.println(pixelHue);
+    //Serial.println("> " + pixels.ColorHSV(pixelHue));
+    firstPixelHue += 256;
+    unsigned int asdas = 0;
+    rainbow_i++;
+
+    switch(charge_i) {
+      case 0:
+        pixels.setPixelColor(charge_i, pixels.gamma32(pixels.ColorHSV(pixelHue)));
+        charge_0 = pixelHue;
+        break;
+      case 1:
+        pixels.setPixelColor(charge_i, pixels.gamma32(pixels.ColorHSV(pixelHue)));
+        charge_1 = pixelHue;
+        break;
+      case 2:
+        pixels.setPixelColor(charge_i, pixels.gamma32(pixels.ColorHSV(pixelHue)));
+        charge_2 = pixelHue;
+        break;
+      case 3:
+        pixels.setPixelColor(charge_i, pixels.gamma32(pixels.ColorHSV(pixelHue)));
+        charge_3 = pixelHue;
+        break;
+    }
+
+    asdas = pixels.getPixelColor(0);
+    int red = (asdas >> 16) & 0xFF;
+    int green = (asdas >> 8) & 0xFF;
+    int blue = asdas & 0xFF;
+    //Serial.println("asdas " + String(asdas)
+     //+ " r " + String(red) 
+     //+ " g " + String(green) 
+     //+ " b " + String(blue));
+
+    //pixels.setPixelColor(charge_i, pixels.gamma32(pixels.ColorHSV(pixelHue)));
+    //pixels.setPixelColor(charge_i, pixels.Color(0, 255, 0));
+    pixels.show();
+    //delay(100);
+    if (charge_i == 4) {
+      clear_charge();
+    } else {
+      charge_i++;
+    }
+
+  }
 }
 
 void run_charge() {
@@ -95,7 +162,7 @@ void run_charge() {
     // if (charge_i != 5 && buttonState == LOW) {
     if (buttonState == LOW && push == false) {
 
-       Serial.println("charge_cache " + String(charge_cache));
+      Serial.println("charge_cache " + String(charge_cache));
       Serial.println("charge_0 " + String(charge_0));
 
        push = true;
@@ -160,54 +227,6 @@ void run_charge() {
     previousMillis_push = currentMillis;
     push = false;
   }
-  if (currentMillis - previousMillis_charge >= delay_interval_1000) {
-    previousMillis_charge = currentMillis;
-    pixelHue = firstPixelHue + (rainbow_i * 65536L / strip.numPixels());
-    //Serial.println(pixelHue);
-    //Serial.println("> " + pixels.ColorHSV(pixelHue));
-    firstPixelHue += 256;
-    unsigned int asdas = 0;
-    rainbow_i++;
-
-    switch(charge_i) {
-      case 0:
-        pixels.setPixelColor(charge_i, pixels.gamma32(pixels.ColorHSV(pixelHue)));
-        charge_0 = pixelHue;
-        break;
-      case 1:
-        pixels.setPixelColor(charge_i, pixels.gamma32(pixels.ColorHSV(pixelHue)));
-        charge_1 = pixelHue;
-        break;
-      case 2:
-        pixels.setPixelColor(charge_i, pixels.gamma32(pixels.ColorHSV(pixelHue)));
-        charge_2 = pixelHue;
-        break;
-      case 3:
-        pixels.setPixelColor(charge_i, pixels.gamma32(pixels.ColorHSV(pixelHue)));
-        charge_3 = pixelHue;
-        break;
-    }
-
-    asdas = pixels.getPixelColor(0);
-    int red = (asdas >> 16) & 0xFF;
-    int green = (asdas >> 8) & 0xFF;
-    int blue = asdas & 0xFF;
-    //Serial.println("asdas " + String(asdas)
-     //+ " r " + String(red) 
-     //+ " g " + String(green) 
-     //+ " b " + String(blue));
-
-    //pixels.setPixelColor(charge_i, pixels.gamma32(pixels.ColorHSV(pixelHue)));
-    //pixels.setPixelColor(charge_i, pixels.Color(0, 255, 0));
-    pixels.show();
-    //delay(100);
-    if (charge_i == 4) {
-      clear_charge();
-    } else {
-      charge_i++;
-    }
-
-  }
 }
 
 void clear_charge() {
@@ -222,21 +241,41 @@ void clear_charge() {
 }
 
 void run_color_combine(int color) {
-  
+    unsigned long currentMillis = millis();
+
     buttonState = digitalRead(2);
     // if (charge_i != 5 && buttonState == LOW) {
     if (buttonState == LOW && push == false) {
        push = true;
 
        unsigned int charge_color_4 = pixels.getPixelColor(4);
-       int red = (charge_color_4 >> 16) & 0xFF;
-       int green = (charge_color_4 >> 8) & 0xFF;
-       int blue = charge_color_4 & 0xFF;
+       
+       int red_4 = (charge_color_4 >> 16) & 0xFF;
+       int green_4 = (charge_color_4 >> 8) & 0xFF;
+       int blue_4 = charge_color_4 & 0xFF;
        Serial.println("asdas " + String(charge_color_4)
-        + " r " + String(red) 
-        + " g " + String(green) 
-        + " b " + String(blue));
+        + " r " + String(red_4) 
+        + " g " + String(green_4) 
+        + " b " + String(blue_4));
 
+       unsigned int charge_color_5 = pixels.getPixelColor(5);
+       
+       int red_5 = (charge_color_5 >> 16) & 0xFF;
+       int green_5 = (charge_color_5 >> 8) & 0xFF;
+       int blue_5 = charge_color_5 & 0xFF;
+       Serial.println("asdas " + String(charge_color_5)
+        + " r " + String(red_5) 
+        + " g " + String(green_5) 
+        + " b " + String(blue_5));
+
+        red_combine_1 = min(red_4+red_5, 256);
+        blue_combine_1 = min(green_4+green_5, 256);
+        green_combine_1 = min(blue_4+blue_5, 256);
+
+        combine = true;
+
+        //(min(r1+r2, 256), min(g1+g2, 256), min(b1+b2, 256))  
+        //strip.setPixelColor(0, min(r1+r2, 256), min(g1+g2, 256), min(b1+b2, 256))
  
        //charge_5 + charge_6;
        //clear_charge();
@@ -261,7 +300,10 @@ void run_color_combine(int color) {
        push = true;
         //clear_charge();
     } 
-  
+    if (currentMillis - previousMillis_push >= delay_interval_push) {
+      previousMillis_push = currentMillis;
+      push = false;
+  }
 
 }
 
@@ -272,11 +314,6 @@ void run_flame(int color) {
     //  Uncomment one of these RGB (Red, Green, Blue) values to
     //  set the base color of the flame.  The color will flickr
     //  based on the initial base color
- 
-    //  Regular (orange) flame:
-    int r = 226, g = 121, b = 35;
-
-
 
     //  Purple flame:
     //  int r = 158, g = 8, b = 148;
@@ -285,7 +322,17 @@ void run_flame(int color) {
     //int r = 74, g = 150, b = 12;
 
     //  Flicker, based on our initial RGB values
-    for(int i=0; i<strip.numPixels(); i++) {
+    for (int i=0; i<strip.numPixels(); i++) {
+      
+      //  Regular (orange) flame:
+      int r = 226, g = 121, b = 35;
+      
+      if (i == 0 && combine) {
+        r = red_combine_1;
+        b = blue_combine_1;
+        g = green_combine_1;
+      }
+
       int flicker = random(0,55);
       int r1 = r-flicker;
       int g1 = g-flicker;
