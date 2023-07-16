@@ -56,10 +56,11 @@ int red_combine_1 = 0;
 int blue_combine_1 = 0;
 int green_combine_1 = 0;
 
-int[] red = {}
-
-
-      int r = 226, g = 121, b = 35;
+//  Regular (orange) flame:
+int red[4] = {226, 226, 226, 226};
+int green[4] = {121, 121, 121, 121};
+int blue[4] = {35, 35, 35, 35};
+int flame_i = 0;
 
 
 bool push = false;
@@ -162,8 +163,8 @@ void run_charge() {
     // if (charge_i != 5 && buttonState == LOW) {
     if (buttonState == LOW && push == false) {
 
-      Serial.println("charge_cache " + String(charge_cache));
-      Serial.println("charge_0 " + String(charge_0));
+      //Serial.println("charge_cache " + String(charge_cache));
+      //Serial.println("charge_0 " + String(charge_0));
 
        push = true;
        if (charge_cache == 4) {
@@ -253,26 +254,33 @@ void run_color_combine(int color) {
        int red_4 = (charge_color_4 >> 16) & 0xFF;
        int green_4 = (charge_color_4 >> 8) & 0xFF;
        int blue_4 = charge_color_4 & 0xFF;
-       Serial.println("asdas " + String(charge_color_4)
-        + " r " + String(red_4) 
-        + " g " + String(green_4) 
-        + " b " + String(blue_4));
+      //  Serial.println("asdas " + String(charge_color_4)
+      //   + " r " + String(red_4) 
+      //   + " g " + String(green_4) 
+      //   + " b " + String(blue_4));
 
        unsigned int charge_color_5 = pixels.getPixelColor(5);
        
        int red_5 = (charge_color_5 >> 16) & 0xFF;
        int green_5 = (charge_color_5 >> 8) & 0xFF;
        int blue_5 = charge_color_5 & 0xFF;
-       Serial.println("asdas " + String(charge_color_5)
-        + " r " + String(red_5) 
-        + " g " + String(green_5) 
-        + " b " + String(blue_5));
+      //  Serial.println("asdas " + String(charge_color_5)
+      //   + " r " + String(red_5) 
+      //   + " g " + String(green_5) 
+      //   + " b " + String(blue_5));
 
         red_combine_1 = min(red_4+red_5, 256);
         blue_combine_1 = min(green_4+green_5, 256);
         green_combine_1 = min(blue_4+blue_5, 256);
+        
+        red[flame_i] = red_combine_1;
+        green[flame_i] = green_combine_1;
+        blue[flame_i] = blue_combine_1;
 
-        combine = true;
+        flame_i++;
+        charge_cache = 4;
+        pixels.setPixelColor(4, pixels.gamma32(pixels.ColorHSV(0)));
+        pixels.setPixelColor(5, pixels.gamma32(pixels.ColorHSV(0)));
 
         //(min(r1+r2, 256), min(g1+g2, 256), min(b1+b2, 256))  
         //strip.setPixelColor(0, min(r1+r2, 256), min(g1+g2, 256), min(b1+b2, 256))
@@ -285,13 +293,43 @@ void run_color_combine(int color) {
     // if (charge_i != 5 && buttonState == LOW) {
     if (buttonState == LOW && push == false) {
        push = true;
+       unsigned int charge_color_4 = pixels.getPixelColor(4);
+       int red_4 = (charge_color_4 >> 16) & 0xFF;
+       int green_4 = (charge_color_4 >> 8) & 0xFF;
+       int blue_4 = charge_color_4 & 0xFF;
+
+       Serial.println("ljlkjkljlkjljjad " + String(charge_color_4)
+        + " r " + String(red_4) 
+        + " g " + String(green_4) 
+        + " b " + String(blue_4));
+       
+       red[flame_i] = red_4;
+       green[flame_i] = green_4;
+       blue[flame_i] = blue_4;
+       flame_i++;
+       pixels.setPixelColor(4, 0, 0, 0);
+
     } 
 
     buttonState = digitalRead(7);
     // if (charge_i != 5 && buttonState == LOW) {
     if (buttonState == LOW && push == false) {
        push = true;
-        //clear_charge();
+       unsigned int charge_color_5 = pixels.getPixelColor(5);
+       int red_5 = (charge_color_5 >> 16) & 0xFF;
+       int green_5 = (charge_color_5 >> 8) & 0xFF;
+       int blue_5 = charge_color_5 & 0xFF;
+
+       Serial.println("ljlkjkljlkjljjad " + String(charge_color_5)
+        + " r " + String(red_5) 
+        + " g " + String(green_5) 
+        + " b " + String(blue_5));
+       
+       red[flame_i] = red_5;
+       green[flame_i] = green_5;
+       blue[flame_i] = blue_5;
+       flame_i++;
+       pixels.setPixelColor(5, 0, 0, 0);
     } 
 
     buttonState = digitalRead(8);
@@ -323,16 +361,11 @@ void run_flame(int color) {
 
     //  Flicker, based on our initial RGB values
     for (int i=0; i<strip.numPixels(); i++) {
+            
+      int r = red[i];
+      int b = blue[i];
+      int g = green[i];
       
-      //  Regular (orange) flame:
-      int r = 226, g = 121, b = 35;
-      
-      if (i == 0 && combine) {
-        r = red_combine_1;
-        b = blue_combine_1;
-        g = green_combine_1;
-      }
-
       int flicker = random(0,55);
       int r1 = r-flicker;
       int g1 = g-flicker;
