@@ -587,10 +587,10 @@ void shift_values() {
         shift_mode();
         break;
       case 20:
-        //new_value = first / second;
+        shift_mode();
         break;
       case 30:
-        //new_value = first * second;
+        shift_mode();
         break;
       case 40:
         //shift_values();
@@ -617,6 +617,7 @@ void shift_mode() {
         //new_value = first / second;
         break;
       case 3:
+        Serial.println("shift_mode 3");
         shift_player_bytes();
         playerMode = 2;
         //new_value = first * second;
@@ -693,8 +694,6 @@ void move_operator() {
 }
 
 
-
-
 void input_right(uint8_t wait) {
     
   buttonState_8 = digitalRead(8);
@@ -704,8 +703,6 @@ void input_right(uint8_t wait) {
   }
 
 }
-
-
 
 void next_frame(uint8_t wait) {
   if( startTime + wait < millis() ) {
