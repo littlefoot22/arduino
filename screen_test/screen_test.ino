@@ -30,6 +30,8 @@ unsigned int operation = 0;
 
 unsigned int fadeDirection = 1; 
 
+bool rotate = true; 
+
 byte randomByte = 0xff;
 
 byte playerMode = 0;
@@ -623,7 +625,8 @@ void shift_mode() {
         //new_value = first * second;
         break;
       case 4:
-        //shift_values();
+        shift_player_bytes();
+        playerMode = 3;
         break;
     }
   
@@ -831,6 +834,7 @@ void loop() {
     buttonState_7 = digitalRead(7);
     if (buttonState_7 == LOW) {
       execute_mode();
+      rotate = true;
       if (num_stack_len < 3) {
         num_stack_len++; 
       }
@@ -864,14 +868,23 @@ void loop() {
       break;
     case 1:
       show_hex(playerByte1, 0);
-      playerByte2 = rotate_hex(10);
+      if (rotate) {
+        playerByte2 = rotate_hex(10);  
+      } else {
+        show_hex(playerByte2, 10);
+      }
+      
       print_operator(operator_id, operator_pos);
       Serial.println("hey 2 :: " + playerMode);
       break;
     case 2:
       show_hex(playerByte1, 0);
       show_hex(playerByte2, 10);
-      playerByte3 = rotate_hex(20);
+      if (rotate) {
+        playerByte3 = rotate_hex(20);
+      } else {
+        show_hex(playerByte3, 20);
+      }
       print_operator(operator_id, operator_pos);
       Serial.println("hey 2 :: " + playerMode);
       break;
@@ -879,7 +892,11 @@ void loop() {
       show_hex(playerByte1, 0);
       show_hex(playerByte2, 10);
       show_hex(playerByte3, 20);
-      playerByte4 = rotate_hex(30);
+      if (rotate) {
+        playerByte4 = rotate_hex(30);
+      } else {
+        show_hex(playerByte4, 30);
+      }
       print_operator(operator_id, operator_pos);
       Serial.println("hey 2 :: " + playerMode);
       break;
@@ -889,6 +906,7 @@ void loop() {
       show_hex(playerByte3, 20);
       show_hex(playerByte4, 30);
       print_operator(operator_id, operator_pos);
+      rotate = false;
       Serial.println("hey 2 :: " + playerMode);
       break;
   }
