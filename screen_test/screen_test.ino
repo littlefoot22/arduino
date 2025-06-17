@@ -611,22 +611,22 @@ void shift_mode() {
         break;
       case 1:
         shift_player_bytes();
-        playerMode = 0;
+        playerMode = playerMode - 1;
         break;
       case 2:
         shift_player_bytes();
-        playerMode = 1;
+        playerMode = playerMode - 1;
         //new_value = first / second;
         break;
       case 3:
         Serial.println("shift_mode 3");
         shift_player_bytes();
-        playerMode = 2;
+        playerMode = playerMode - 1;
         //new_value = first * second;
         break;
       case 4:
         shift_player_bytes();
-        playerMode = 3;
+        playerMode = playerMode - 1;
         break;
     }
   
@@ -676,7 +676,6 @@ void set_new_value() {
         break;
     }
 }
-
 
 void move_operator() {
     switch (operator_pos) {
