@@ -695,7 +695,6 @@ void move_operator() {
     }
 }
 
-
 void input_right(uint8_t wait) {
     
   buttonState_8 = digitalRead(8);
@@ -805,7 +804,6 @@ void next_frame_sword(int wait) {
     }
   }
 }
- 
  
 void loop() {
 
