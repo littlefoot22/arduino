@@ -534,7 +534,6 @@ void change_operator() {
     }
 }
 
-
 void execute_operation() {
     switch (operator_pos) {
       case 0:
@@ -554,7 +553,6 @@ void execute_operation() {
         break;
     }
 }
-
 
 void calculate_operation(byte first, byte second) {
     switch (operator_id) {
