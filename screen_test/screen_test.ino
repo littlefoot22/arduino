@@ -18,6 +18,10 @@ Adafruit_NeoPixel pixels(NUMPIXELS, 6, NEO_GRB + NEO_KHZ800);
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
 unsigned long startTime; 
+unsigned long buttonStartTime; 
+unsigned long frame_1_startTime; 
+
+unsigned long bossHexStartTime; 
 
 unsigned int frame_number = 0; 
 unsigned int frame_number_sword = 0;
@@ -27,6 +31,10 @@ uint8_t num_stack_len = 0;
 unsigned int brightness = 120; 
 
 unsigned int operation = 0; 
+uint16_t j = 0;
+
+uint8_t frame_id = 0;
+uint8_t meter = 0;
 
 unsigned int fadeDirection = 1; 
 
@@ -34,7 +42,15 @@ bool rotate = true;
 
 byte randomByte = 0xff;
 
+byte boss_byte_0 = 0xff;
+byte boss_byte_1 = 0xff;
+byte boss_byte_2 = 0xff;
+byte boss_byte_3 = 0xff;
+
 byte playerMode = 0;
+
+int screenWidth;
+int screenHeight;
 
 byte playerByte1 = 0xff;
 byte playerByte2 = 0xff;
@@ -45,7 +61,7 @@ byte new_value = 0xff;
 int operator_id = 0;
 int operator_pos = 0;
 
-int BUTTON_DELAY = 1000;
+int BUTTON_DELAY = 100;
 
 
 // 'sword', 23x54px
@@ -302,6 +318,27 @@ const unsigned char epd_bitmap_blade [] PROGMEM = {
 };
 
 
+//const unsigned char epd_bitmap_2s [] PROGMEM = {
+//  0x00, 0x70, 0x00, 0x00, 0x70, 0x00, 0xfe, 0x63, 0xf8, 0xff, 0xef, 0xf8, 0x03, 0x8c, 0x00, 0x3e, 
+//  0x03, 0xe0, 0x7e, 0x03, 0xe0, 0xe0, 0x00, 0x38, 0xff, 0x8f, 0xf8
+//};
+
+const unsigned char epd_bitmap_2s [] PROGMEM = {
+  0x00, 0x70, 0x00, 0x00, 0x70, 0x00, 0xfe, 0x63, 0xf8, 0xff, 0xef, 0xf8, 0x03, 0x8c, 0x00, 0x3e, 
+  0x03, 0xe0, 0x7e, 0x03, 0xe0, 0xe0, 0x00, 0x38, 0xff, 0x8f, 0xf8
+};
+
+const unsigned char epd_bitmap_comp [] PROGMEM = {
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3f, 0x1f, 0x98, 0x6f, 0xe6, 0x03, 
+  0xfd, 0x86, 0xff, 0x61, 0xbf, 0xc0, 0x36, 0x7f, 0x9f, 0x9f, 0xef, 0xf6, 0x03, 0xfd, 0xfe, 0xff, 
+  0x79, 0xbf, 0xc0, 0x36, 0x61, 0xb0, 0xdf, 0xec, 0x36, 0x03, 0x01, 0xfe, 0xc0, 0x79, 0x86, 0x00, 
+  0x36, 0x60, 0x30, 0xdb, 0x6f, 0xe6, 0x03, 0xf9, 0xb6, 0xfe, 0x6d, 0x86, 0x00, 0x36, 0x60, 0x30, 
+  0xdb, 0x6f, 0xe6, 0x03, 0xf9, 0xb6, 0xfe, 0x6d, 0x86, 0x00, 0x36, 0x61, 0xb0, 0xd8, 0x6c, 0x06, 
+  0x03, 0x01, 0x86, 0xc0, 0x67, 0x86, 0x00, 0x00, 0x7f, 0xbf, 0xd8, 0x6c, 0x07, 0xfb, 0xfd, 0x86, 
+  0xff, 0x67, 0x86, 0x00, 0x36
+};
+
 
 
 int buttonState_8 = 0;
@@ -314,7 +351,7 @@ void setup() {
   Serial.begin(115200);
   
   pixels.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
-  pixels.setBrightness(30); // not so bright
+  pixels.setBrightness(10); // not so bright
   pixels.setPixelColor(0, pixels.Color(255,0,0));
   pixels.setPixelColor(1, pixels.Color(255,0,0));
 
@@ -368,7 +405,8 @@ void setup() {
   pinMode(7, INPUT_PULLUP);
   pinMode(2, INPUT_PULLUP);
   pinMode(4, INPUT_PULLUP);
- 
+  screenWidth = display.width();
+  screenHeight = display.height();
   // Clear the buffer.
   display.clearDisplay();
   
@@ -385,6 +423,7 @@ void setup() {
   randomSeed(analogRead(0));
 
   startTime = millis();
+  bossHexStartTime = millis();
 }
 
 
@@ -404,17 +443,16 @@ uint32_t Wheel(byte WheelPos) {
 
 void rainbow(uint8_t wait) {
   if( startTime + wait < millis() ) {
-    uint16_t i, j;
+    uint16_t i;
 
-    for(j=0; j<256; j++) {
-      for(i=4; i<pixels.numPixels()-1; i++) {
-        if (random(pixels.numPixels()) == i)
-          pixels.setPixelColor(i,255, 255, 255);
-        else
-          pixels.setPixelColor(i, Wheel((i+j) & 255));  
-      }
-      pixels.show();
+    for(i=4; i<pixels.numPixels()-1; i++) {
+      if (random(pixels.numPixels()) == i)
+        pixels.setPixelColor(i,255, 255, 255);
+      else
+        pixels.setPixelColor(i, Wheel((i+j) & 255));  
+        j++;
     }
+    pixels.show();
   }
 }
 
@@ -452,6 +490,96 @@ byte rotate_hex(uint8_t pos) {
 
 }
 
+byte generate_top_hex(int health, int wait) {
+  //display.clearDisplay();
+  char hexString[10];
+
+  if( bossHexStartTime + wait < millis() ) {
+    bossHexStartTime = millis();
+    if (meter <= health) {
+      meter = meter + 1; 
+    }
+
+  }
+  switch (meter) {
+      case 0:
+        boss_byte_0 = random();
+        sprintf(hexString, "0x%02X", boss_byte_0); // Format as "0xXX"
+        display.setCursor(0,0);  
+        display.println(hexString);
+        break;
+      case 1:
+        boss_byte_1 = random();
+        sprintf(hexString, "%02X", boss_byte_1); // Format as "0xXX"
+        display.setCursor(25,0);  
+        display.println(hexString);
+        break;
+      case 2:
+        boss_byte_2 = random();
+        sprintf(hexString, "%02X", boss_byte_2); // Format as "0xXX"
+        display.setCursor(37,0);  
+        display.println(hexString);
+        break;
+      case 3:
+        boss_byte_3 = random();
+        sprintf(hexString, "%02X", boss_byte_3); // Format as "0xXX"
+        display.setCursor(50,0);  
+        display.println(hexString);
+        break;
+
+  }
+}
+
+
+byte display_top_hex() {
+  //display.clearDisplay();
+  uint8_t display_meter = meter - 1; 
+  char hexString[10]; // Buffer to store the formatted string
+
+  switch (display_meter) {
+      case 0:
+        sprintf(hexString, "0x%02X", boss_byte_0); // Format as "0xXX"
+        display.setCursor(0,0);  
+        display.println(hexString);
+        break;
+      case 1:
+        sprintf(hexString, "0x%02X", boss_byte_0); // Format as "0xXX"
+        display.setCursor(0,0);  
+        display.println(hexString);
+        sprintf(hexString, "%02X", boss_byte_1); // Format as "0xXX"
+        display.setCursor(25,0);  
+        display.println(hexString);
+        break;
+      case 2:
+        sprintf(hexString, "0x%02X", boss_byte_0); // Format as "0xXX"
+        display.setCursor(0,0);  
+        display.println(hexString);
+        sprintf(hexString, "%02X", boss_byte_1); // Format as "0xXX"
+        display.setCursor(25,0);  
+        display.println(hexString);
+        sprintf(hexString, "%02X", boss_byte_2); // Format as "0xXX"
+        display.setCursor(37,0);  
+        display.println(hexString);
+        break;
+      case 3:
+        sprintf(hexString, "0x%02X", boss_byte_0); // Format as "0xXX"
+        display.setCursor(0,0);  
+        display.println(hexString);
+        sprintf(hexString, "%02X", boss_byte_1); // Format as "0xXX"
+        display.setCursor(25,0);  
+        display.println(hexString);
+        sprintf(hexString, "%02X", boss_byte_2); // Format as "0xXX"
+        display.setCursor(37,0);  
+        display.println(hexString);
+        sprintf(hexString, "%02X", boss_byte_3); // Format as "0xXX"
+        display.setCursor(50,0);  
+        display.println(hexString);
+        break;
+
+  }
+
+}
+
 
 void show_hex(byte hex, int pos) {
   char hexString[10]; // Buffer to store the formatted string
@@ -486,6 +614,15 @@ void print_operator(uint8_t id, uint8_t pos) {
       case 4:
         display.setCursor(90, pos);             
         display.println(">");
+        break;
+      case 5:
+        display.setCursor(90, pos);             
+        display.println("B");
+        break;
+        break;
+      case 6:
+        display.setCursor(90, pos);             
+        display.println("2");
         break;
     }
 }
@@ -528,8 +665,15 @@ void change_operator() {
         operator_id = 4;
         break;
       case 4:
+        operator_id = 5;
+        break;
+      case 5:
+        operator_id = 6;
+        break;
+      case 6:
         operator_id = 0;
         break;
+
 
     }
 }
@@ -570,6 +714,14 @@ void calculate_operation(byte first, byte second) {
         break;
       case 4:
         shift_values();
+        break;
+      case 5:
+        frame_id = 5;
+        break;
+      case 6:
+        int8_t s_first = first;
+        boss_byte_0 = boss_byte_0 + s_first;
+        frame_id = 7;
         break;
     }
 }
@@ -704,7 +856,8 @@ void input_right(uint8_t wait) {
 }
 
 void next_frame(uint8_t wait) {
-  if( startTime + wait < millis() ) {
+  if( frame_1_startTime + wait < millis() ) {
+    //frame_1_startTime = millis();
     switch (frame_number) {
     case 0:
       //display.clearDisplay();
@@ -779,7 +932,13 @@ void next_frame_sword(int wait) {
       display.drawBitmap(10, 20, epd_bitmap_binary, 80, 12, 1);
       display.drawBitmap(10, 40, epd_bitmap_blade, 70, 12, 1);
       //display.drawBitmap(20 + frame_sword_mov, 10, epd_bitmap_sword_180, 23, 54, 1);
+      display.display();
 
+      delay(2000);
+      
+      frame_number_sword = 0;
+      frame_id = 0;
+      frame_sword_mov = 0;
       //display.display();
       //frame_number_sword = 0;
       break;
@@ -788,7 +947,7 @@ void next_frame_sword(int wait) {
   if( startTime + wait < millis() ) {
       startTime = millis();
 
-    if (frame_number_sword == 3) {
+    if (frame_number_sword >= 3) {
       frame_number_sword = 0;
       frame_sword_mov = frame_sword_mov + 10;
 
@@ -802,15 +961,73 @@ void next_frame_sword(int wait) {
     }
   }
 }
+
+void two_comp() {
+  display.clearDisplay();
+
+  char letter = '1';
+  
+  for (int x = 0; x < screenWidth; x += 6) {
+    for (int y = 0; y < screenHeight; y += 10) {
+      //delay(10); 
+      display.setCursor(x, y);
+      display.print(letter);
+
+      letter++;
+      if (letter > '1') {
+        letter = '0';
+      }
+    }
+    display.display();
+  }
+  
+  display.clearDisplay();
+  display.drawBitmap(5, 20, epd_bitmap_2s, 22, 9, 1);
+  display.drawBitmap(5, 40, epd_bitmap_comp, 103, 9, 1);
+  display.display();
+//  display.setCursor(35, 20);
+//  display.print("1010101010");
+//
+//  display.setCursor(0, 5);
+//  display.print("01101100");
+
+  display.display();
+
+  delay(2000); 
+
+  frame_id = 0;
+  
+}
+
+void show_next_frame() {
+    switch (frame_id) {
+      case 5:
+        next_frame_sword(25);
+        break;
+      case 7:
+        two_comp();
+        break;
+      default:
+        next_frame(200);
+        break;
+    }
+}
+
  
 void loop() {
 
   display.clearDisplay();
-   
+  generate_top_hex(3, 2000);
+  display_top_hex();
+
+  //two_comp();
+
+  
   pixels.show(); // This sends the updated pixel color to the hardware.
 
-  //rainbow(1000);
-  next_frame(200);
+  rainbow(1000);
+  show_next_frame();
+  //next_frame(200);
   //next_frame_sword(25);
 
   digitalWrite(12, HIGH);  // turn the LED on (HIGH is the voltage level)
@@ -818,7 +1035,8 @@ void loop() {
   digitalWrite(12, LOW);   // turn the LED off by making the voltage LOW
   //delay(1000);                      // wait for a second
 
-  if ( startTime + BUTTON_DELAY < millis() ) {
+  if ( buttonStartTime + BUTTON_DELAY < millis() ) {
+    buttonStartTime = millis();
     buttonState_8 = digitalRead(8);
     if (buttonState_8 == LOW) {
       Serial.println("hello");
@@ -829,6 +1047,7 @@ void loop() {
     buttonState_7 = digitalRead(7);
     if (buttonState_7 == LOW) {
       execute_mode();
+      frame_id = 0;
       rotate = true;
       if (num_stack_len < 3) {
         num_stack_len++; 
@@ -852,7 +1071,7 @@ void loop() {
     }
   }
 
-
+if(frame_id <5) {
   switch(playerMode) {
     case 0:
       playerByte1 = rotate_hex(0);
@@ -905,6 +1124,7 @@ void loop() {
       Serial.println("hey 2 :: " + playerMode);
       break;
   }
+}
 
   display.display();
 
