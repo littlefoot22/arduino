@@ -2309,7 +2309,6 @@ void shift_values() {
         //shift_values();
         break;
     }
-  
 }
 
 void shift_mode() {
