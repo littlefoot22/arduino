@@ -51,6 +51,7 @@ uint8_t shift_bits = 10;
 bool rotate = true; 
 
 byte randomByte = 0xff;
+int8_t rounds = 0x03;
 
 byte boss_byte_0 = 0xff;
 byte boss_byte_1 = 0xff;
@@ -1893,11 +1894,11 @@ void setup() {
   
   pixels.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
   pixels.setBrightness(10); // not so bright
-//  pixels.setPixelColor(0, pixels.Color(255,0,0));
-//  pixels.setPixelColor(1, pixels.Color(255,0,0));
+  pixels.setPixelColor(0, pixels.Color(255,0,0));
+  pixels.setPixelColor(1, pixels.Color(255,0,0));
 //
-//  pixels.setPixelColor(2, pixels.Color(255,128,0));
-//  pixels.setPixelColor(3, pixels.Color(255,128,0));
+  pixels.setPixelColor(2, pixels.Color(255,128,0));
+  pixels.setPixelColor(3, pixels.Color(255,128,0));
 //
 //
 //  pixels.setPixelColor(4, pixels.Color(0,0,255));
@@ -1920,7 +1921,7 @@ void setup() {
 //  pixels.setPixelColor(21, pixels.Color(0,0,255));
 //  pixels.setPixelColor(22, pixels.Color(0,0,255));
 //  pixels.setPixelColor(23, pixels.Color(0,0,255));
-//  pixels.setPixelColor(24, pixels.Color(255,128,0)); 
+    pixels.setPixelColor(24, pixels.Color(255,128,0)); 
 //  pixels.setPixelColor(25, pixels.Color(255,128,0)); 
 
   pinMode(2, INPUT_PULLUP);
@@ -1975,7 +1976,6 @@ uint32_t Wheel(byte WheelPos) {
   }
 }
 
-
 void rainbow(uint8_t wait) {
   if( startTime + wait < millis() ) {
     uint16_t i;
@@ -1991,21 +1991,6 @@ void rainbow(uint8_t wait) {
   }
 }
 
-//void fade(uint8_t wait) {
-//  if( startTime + wait < millis() ) {
-//    
-//    // Change the brightness
-//    brightness += 5 * fadeDirection; // Adjust speed of fade
-//    pixels.setPixelColor(0,brightness, brightness, brightness);
-//    pixels.setPixelColor(1,brightness, brightness, brightness);
-//    pixels.show();
-//
-//    // Change the direction of the fade
-//    if (brightness < 1 || brightness > 255) {
-//      fadeDirection *= -1; // Reverse the direction
-//    }
-//  }
-//}
 
 byte rotate_hex(uint8_t pos) {
   //display.clearDisplay();
@@ -2157,7 +2142,7 @@ void print_operator(uint8_t id, uint8_t pos) {
         break;
       case 6:
         display.setCursor(90, pos);             
-        display.println("2");
+        display.println("U");
         break;
       case 7:
         display.setCursor(90, pos);             
@@ -2188,6 +2173,10 @@ void execute_mode() {
       case 4:
         playerMode = 0;
         num_stack_len = 0;
+        rounds = rounds - 1;
+        if (rounds <= 0) {
+          mode = 's';
+        }
         break;
     }
 }
@@ -2230,7 +2219,8 @@ void change_operator() {
 void execute_operation() {
     switch (operator_pos) {
       case 0:
-        calculate_operation(playerByte1, playerByte2);
+        calculate_operation(playerByte2, playerByte1);
+        set_new_value();
         break;
       case 10:
         calculate_operation(playerByte1, playerByte2);
@@ -2248,7 +2238,7 @@ void execute_operation() {
 }
 
 void calculate_operation(byte first, byte second) {
-    int8_t s_second = second;          
+    byte s_second = second;          
     switch (operator_id) {
       case 0:
         new_value = first + second;
@@ -2270,19 +2260,33 @@ void calculate_operation(byte first, byte second) {
         boss_byte_0 = boss_byte_0 ^ second;
         break;
       case 6:
-        boss_byte_0 = boss_byte_0 + s_second;
-        frame_id = 7;
-        break;
-      case 7:
         if (signed_bits > 0) {
-          boss_byte_0 = boss_byte_0 << 1;
-          frame_id = 9;
+          boss_byte_0 = boss_byte_0 + second;
+          frame_id = 11;
           signed_bits = signed_bits -1;
         }
         break;
+      case 7:
+        if (shift_bits > 0) {
+          boss_byte_0 = boss_byte_0 << 1;
+          frame_id = 9;
+          shift_bits = shift_bits -1;
+        }
+        break;
       case 8:
-        second = (second << 1) | (1 & 1);
-        frame_id = 11;
+        //second = (second << 1) | (1 & 1);
+        if (signed_bits > 0) {
+          int8_t s_second = second;
+          s_second = boss_byte_0 + s_second;
+          uint8_t dmg = s_second;
+          if (dmg <= 0) {
+            boss_byte_0 = 0x00;
+          } else {
+            boss_byte_0 = dmg;
+          }
+          frame_id = 11;
+          signed_bits = signed_bits -1;
+        }
         break;
     }
 }
@@ -2603,27 +2607,32 @@ unsigned int get_index() {
 
 
   if(randomNumber <= 5){
+    boss_health = 3;
     pok_index = 5;
     return;
   }
   if(randomNumber <= 15){
+    boss_health = 3;
     pok_index = 4;
     return;
   }
   if(randomNumber <= 20){
+    boss_health = 2;
     pok_index = 0;
     return;
   }
 
   if(randomNumber <= 30){
+    boss_health = 1;
     pok_index = 2;
     return;
   }
   if(randomNumber <= 50){
+    boss_health = 0;
     pok_index = 1;
     return;
   }
-  
+  boss_health = 0;
   pok_index = 3;
 
 
@@ -2785,23 +2794,23 @@ void next_frame_pory(int wait) {
 }
 
 void two_comp() {
-  display.clearDisplay();
+  //display.clearDisplay();
 
-  char letter = '1';
+  // char letter = '1';
   
-  for (int x = 0; x < screenWidth; x += 6) {
-    for (int y = 0; y < screenHeight; y += 10) {
-      //delay(10); 
-      display.setCursor(x, y);
-      display.print(letter);
+  // for (int x = 0; x < screenWidth; x += 6) {
+  //   for (int y = 0; y < screenHeight; y += 10) {
+  //     //delay(10); 
+  //     display.setCursor(x, y);
+  //     display.print(letter);
 
-      letter++;
-      if (letter > '1') {
-        letter = '0';
-      }
-    }
-    display.display();
-  }
+  //     letter++;
+  //     if (letter > '1') {
+  //       letter = '0';
+  //     }
+  //   }
+  //   display.display();
+  // }
   
 //  display.clearDisplay();
 //  display.drawBitmap(5, 20, epd_bitmap_2s, 22, 9, 1);
@@ -2815,7 +2824,7 @@ void two_comp() {
 
 //  display.display();
 
-  delay(2000); 
+  //delay(2000); 
 
   frame_id = 0;
   
@@ -2830,7 +2839,7 @@ void show_next_frame() {
         two_comp();
         break;
       case 9:
-        if (signed_bits > 0) {
+        if (shift_bits > 0) {
           next_frame_drag(75); 
         } else {
           frame_id = 0;
@@ -2859,16 +2868,17 @@ void battle() {
   generate_top_hex(boss_health, 2000);
   display_top_hex();
 
-  char shift_string[1];
   char sign_string[1];
 
   sprintf(sign_string, "%d", signed_bits); // Format as "0xXX"
-  display.setCursor(80, 55);  
+  display.setCursor(85, 55);  
   display.println(sign_string);
+  
+  char shift_string[1];
 
   sprintf(shift_string, "%d", shift_bits); // Format as "0xXX"
   display.setCursor(70, 55);  
-  display.println(sign_string);
+  display.println(shift_string);
   
   pixels.show(); // This sends the updated pixel color to the hardware.
 
@@ -2976,13 +2986,17 @@ void show_map() {
     buttonState_2 = digitalRead(2);
     if (buttonState_2 == LOW) {
         get_index();
-        boss_health = 1;
 //      Serial.println("pok_index");
 //      Serial.println(pok_index);
 
       if (index == 11) {
         mode = 'd';        
       } else {
+        rounds = 0x3;
+        meter = 0;
+        signed_bits = 10;
+        //boss_byte_0 = 0xff;
+        boss_byte_0 = random();
         mode = 'b';        
       }
 
@@ -3042,8 +3056,12 @@ void shift_boss_byte() {
 
    switch(boss_health) {
     case 0:
-      if (boss_byte_0 == 0) {
-
+      if (boss_byte_0 == 0 && frame_id != 5 && frame_id != 11) {
+        display.clearDisplay();
+        display.setCursor(40, 25);
+        display.print(F("CAUGHT !!!"));
+        display.display();
+        delay(3000);
         caught[pok_index] = 1;
         ivs[pok_index] = random() % 100;
         mode = 's';
