@@ -1,6 +1,6 @@
 #include <Adafruit_NeoPixel.h>
 
-#define PIN        8
+#define PIN        12
 #define NUM_PIXELS 10
 #define SPACING    6
 
@@ -75,10 +75,10 @@ void loop() {
     float dist = min(phase, (float)SPACING - phase);
 
     int brightness;
-    if      (dist < 0.5) brightness = 60;
-    else if (dist < 1.5) brightness = 30;
-    else if (dist < 2.5) brightness = 15;
-    else                  brightness = 7;
+    if      (dist < 0.5) brightness = 15;
+    else if (dist < 1.5) brightness = 8;
+    else if (dist < 2.5) brightness = 4;
+    else                  brightness = 1;
 
     strip.setPixelColor(i, strip.Color(brightness, 0, 0));
   }
