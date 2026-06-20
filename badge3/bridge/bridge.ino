@@ -12,7 +12,7 @@
 #define CITY_PIXELS 13
 
 #define PIN4        10
-#define NUM_PIXELS4 6
+#define NUM_PIXELS4 7
 
 Adafruit_NeoPixel strip(NUM_PIXELS, PIN, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel strip2(NUM_PIXELS2, PIN2, NEO_GRB + NEO_KHZ800);
@@ -28,7 +28,7 @@ uint32_t cityColors[CITY_PIXELS];
 int cityTimer = 0;
 
 // each neon pixel starts at a different point on the color wheel
-uint16_t neonHue[4] = {0, 16384, 32768, 49152};
+uint16_t neonHue[5] = {0, 16384, 32768, 49152, 8192};
 int twinkleTimer = 0;
 
 // smooth fade: dim base, brief pulse up every ~4 seconds
@@ -114,13 +114,13 @@ void loop() {
   neonHue[1] += 210;
   neonHue[2] += 175;
   neonHue[3] += 240;
-  for (int i = 0; i < 4; i++) {
-    strip4.setPixelColor(i, strip4.gamma32(strip4.ColorHSV(neonHue[i], 255, 190)));
+  neonHue[4] += 195;
+  for (int i = 0; i < 5; i++) {
+    strip4.setPixelColor(i, strip4.gamma32(strip4.ColorHSV(neonHue[i], 255, 20)));
   }
   twinkleTimer++;
-  // offset pixel 5 by half the period so they twinkle at different times
-  strip4.setPixelColor(4, strip4.Color(0, 0, twinkleBrightness(twinkleTimer)));
-  strip4.setPixelColor(5, strip4.Color(0, 0, twinkleBrightness(twinkleTimer + 200)));
+  strip4.setPixelColor(5, strip4.Color(0, 0, twinkleBrightness(twinkleTimer)));
+  strip4.setPixelColor(6, strip4.Color(0, 0, twinkleBrightness(twinkleTimer + 200)));
   strip4.show();
 
   rainbowHue += 300;
