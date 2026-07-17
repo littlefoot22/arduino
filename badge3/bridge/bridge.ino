@@ -14,24 +14,50 @@
 #define PIN4        10
 #define NUM_PIXELS4 7
 
+#define BTN_PATTERN 7
+#define BTN_BRIGHT  8
+#define LONG_PRESS_MS 700
+
 Adafruit_NeoPixel strip(NUM_PIXELS, PIN, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel strip2(NUM_PIXELS2, PIN2, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel strip3(NUM_PIXELS3, PIN3, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel strip4(NUM_PIXELS4, PIN4, NEO_GRB + NEO_KHZ800);
 
+// --- Brightness ---
+const uint8_t BRIGHT_LEVELS[] = {20, 60, 130, 255};
+const int NUM_BRIGHT_LEVELS = 4;
+int brightIndex = 2;
+
+// --- Pattern ---
+int patternIndex = 0;
+#define NUM_PATTERNS 3
+
+// --- Button state ---
+bool btn7Last = HIGH, btn8Last = HIGH;
+unsigned long btn7PressTime = 0, btn8PressTime = 0;
+
+// --- Strip 1 ---
 float offset = 0.0;
 const float SPEED = 0.05;
 
+// --- Strip 2 pattern state ---
 uint16_t rainbowHue = 0;
+uint16_t tokyoGradOffset = 0;
 
+// Strip 2 pattern 2: star twinkle
+uint16_t starPhase[NUM_PIXELS2];
+uint16_t starHue[NUM_PIXELS2];
+bool starIsColor[NUM_PIXELS2];
+uint8_t starSpeed[NUM_PIXELS2];
+
+// --- Strip 3 ---
 uint32_t cityColors[CITY_PIXELS];
 int cityTimer = 0;
 
-// each neon pixel starts at a different point on the color wheel
+// --- Strip 4 ---
 uint16_t neonHue[5] = {0, 16384, 32768, 49152, 8192};
 int twinkleTimer = 0;
 
-// smooth fade: dim base, brief pulse up every ~4 seconds
 int twinkleBrightness(int t) {
   const int PERIOD = 400;
   const int FADE   = 40;
@@ -56,19 +82,129 @@ void randomizeCityPixel(int i) {
   }
 }
 
+void initStars() {
+  for (int i = 0; i < NUM_PIXELS2; i++) {
+    starPhase[i]   = random(180);
+    starSpeed[i]   = random(4, 10);
+    starIsColor[i] = (random(5) == 0);
+    starHue[i]     = random(65536);
+  }
+}
+
+void setAllBrightness() {
+  uint8_t b = BRIGHT_LEVELS[brightIndex];
+  strip.setBrightness(b);
+  strip2.setBrightness(b);
+  strip3.setBrightness(b);
+  strip4.setBrightness(b);
+}
+
+void handleButtons() {
+  bool btn7 = digitalRead(BTN_PATTERN);
+  bool btn8 = digitalRead(BTN_BRIGHT);
+  unsigned long now = millis();
+
+  // Both held: reset to default brightness and pattern 0
+  if (btn7 == LOW && btn8 == LOW) {
+    brightIndex = 2;
+    patternIndex = 0;
+    setAllBrightness();
+    delay(500);
+    return;
+  }
+
+  // Button 7 press
+  if (btn7 == LOW && btn7Last == HIGH) btn7PressTime = now;
+  // Button 7 release: cycle pattern (short press only)
+  if (btn7 == HIGH && btn7Last == LOW) {
+    patternIndex = (patternIndex + 1) % NUM_PATTERNS;
+  }
+
+  // Button 8 press
+  if (btn8 == LOW && btn8Last == HIGH) btn8PressTime = now;
+  // Button 8 release: short = brightness up, long = brightness down
+  if (btn8 == HIGH && btn8Last == LOW) {
+    if (now - btn8PressTime < LONG_PRESS_MS) {
+      brightIndex = min(brightIndex + 1, NUM_BRIGHT_LEVELS - 1);
+    } else {
+      brightIndex = max(brightIndex - 1, 0);
+    }
+    setAllBrightness();
+  }
+
+  btn7Last = btn7;
+  btn8Last = btn8;
+}
+
+// Add new strip2 patterns here as new case blocks
+void drawStrip2() {
+  switch (patternIndex) {
+    case 0: {
+      // Rainbow wash + solid red center
+      uint32_t c = strip2.gamma32(strip2.ColorHSV(rainbowHue, 255, 200));
+      strip2.setPixelColor(0, c);
+      strip2.setPixelColor(1, c);
+      strip2.setPixelColor(2, c);
+      strip2.setPixelColor(3, strip2.Color(200, 0, 0));
+      strip2.setPixelColor(4, strip2.Color(200, 0, 0));
+      strip2.setPixelColor(5, c);
+      break;
+    }
+    case 1: {
+      // Tokyo neon gradient drifting downward (cyan -> purple -> pink range)
+      for (int i = 0; i < NUM_PIXELS2; i++) {
+        uint16_t hue = 32768 + ((tokyoGradOffset + (uint16_t)(i * 5461)) % 32768);
+        strip2.setPixelColor(i, strip2.gamma32(strip2.ColorHSV(hue, 255, 180)));
+      }
+      tokyoGradOffset += 60;
+      break;
+    }
+    case 2: {
+      // Stars: mostly white twinkles, 20% random color, each pixel independent
+      const uint16_t STAR_PERIOD = 180;
+      for (int i = 0; i < NUM_PIXELS2; i++) {
+        starPhase[i] += starSpeed[i];
+        if (starPhase[i] >= STAR_PERIOD) {
+          starPhase[i]   = 0;
+          starIsColor[i] = (random(5) == 0);
+          starHue[i]     = random(65536);
+          starSpeed[i]   = random(4, 10);
+        }
+        uint16_t p = starPhase[i];
+        uint8_t bright = (p < STAR_PERIOD / 2)
+          ? (uint8_t)((p * 255) / (STAR_PERIOD / 2))
+          : (uint8_t)(((STAR_PERIOD - p) * 255) / (STAR_PERIOD / 2));
+        uint32_t c = starIsColor[i]
+          ? strip2.gamma32(strip2.ColorHSV(starHue[i], 220, bright))
+          : strip2.Color(bright, bright, bright);
+        strip2.setPixelColor(i, c);
+      }
+      break;
+    }
+    // case 3: add pattern 4 here
+  }
+  strip2.show();
+}
+
 void setup() {
   strip.begin();  strip.show();
   strip2.begin(); strip2.show();
   strip3.begin(); strip3.show();
   strip4.begin(); strip4.show();
 
+  pinMode(BTN_PATTERN, INPUT_PULLUP);
+  pinMode(BTN_BRIGHT,  INPUT_PULLUP);
+
   randomSeed(analogRead(A0));
-  for (int i = 0; i < CITY_PIXELS; i++) {
-    randomizeCityPixel(i);
-  }
+  for (int i = 0; i < CITY_PIXELS; i++) randomizeCityPixel(i);
+  initStars();
+
+  setAllBrightness();
 }
 
 void loop() {
+  handleButtons();
+
   // --- Strip 1: traveling red light ---
   for (int i = 0; i < NUM_PIXELS; i++) {
     float phase = fmod(i - offset + NUM_PIXELS * SPACING, (float)SPACING);
@@ -84,15 +220,8 @@ void loop() {
   }
   strip.show();
 
-  // --- Strip 2: rainbow / solid red pattern ---
-  uint32_t rainbowColor = strip2.gamma32(strip2.ColorHSV(rainbowHue, 255, 200));
-  strip2.setPixelColor(0, rainbowColor);
-  strip2.setPixelColor(1, rainbowColor);
-  strip2.setPixelColor(2, rainbowColor);
-  strip2.setPixelColor(3, strip2.Color(200, 0, 0));
-  strip2.setPixelColor(4, strip2.Color(200, 0, 0));
-  strip2.setPixelColor(5, rainbowColor);
-  strip2.show();
+  // --- Strip 2: pattern ---
+  drawStrip2();
 
   // --- Strip 3: NYC skyline + One WTC rainbow top ---
   cityTimer++;
@@ -109,7 +238,7 @@ void loop() {
   strip3.setPixelColor(15, wtcColor);
   strip3.show();
 
-  // --- Strip 4: Tokyo neon (0-3) + dim blue twinkle (4-5) ---
+  // --- Strip 4: Tokyo neon (0-4) + dim blue twinkle (5-6) ---
   neonHue[0] += 150;
   neonHue[1] += 210;
   neonHue[2] += 175;
