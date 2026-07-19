@@ -23,13 +23,14 @@ Adafruit_NeoPixel strip2(NUM_PIXELS2, PIN2, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel strip3(NUM_PIXELS3, PIN3, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel strip4(NUM_PIXELS4, PIN4, NEO_GRB + NEO_KHZ800);
 
+#define NUM_STRIPS 4
+
 // --- Brightness ---
 const uint8_t BRIGHT_LEVELS[] = {20, 60, 130, 255};
 const int NUM_BRIGHT_LEVELS = 4;
 int brightIndex[NUM_STRIPS] = {2, 2, 2, 2};
 
 // --- Pattern ---
-#define NUM_STRIPS 4
 int patternIndex[NUM_STRIPS] = {0, 0, 0, 0};
 const int NUM_STRIP_PATTERNS[NUM_STRIPS] = {4, 7, 5, 7};
 int selectedStrip = 1;
