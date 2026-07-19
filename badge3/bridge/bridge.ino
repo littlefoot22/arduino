@@ -26,12 +26,12 @@ Adafruit_NeoPixel strip4(NUM_PIXELS4, PIN4, NEO_GRB + NEO_KHZ800);
 // --- Brightness ---
 const uint8_t BRIGHT_LEVELS[] = {20, 60, 130, 255};
 const int NUM_BRIGHT_LEVELS = 4;
-int brightIndex = 2;
+int brightIndex[NUM_STRIPS] = {2, 2, 2, 2};
 
 // --- Pattern ---
 #define NUM_STRIPS 4
 int patternIndex[NUM_STRIPS] = {0, 0, 0, 0};
-const int NUM_STRIP_PATTERNS[NUM_STRIPS] = {4, 3, 5, 1};
+const int NUM_STRIP_PATTERNS[NUM_STRIPS] = {4, 7, 5, 7};
 int selectedStrip = 1;
 
 // --- Button state ---
@@ -54,6 +54,8 @@ float bridgeFogPos = 0.0;
 // --- Strip 2 pattern state ---
 uint16_t rainbowHue = 0;
 uint16_t tokyoGradOffset = 0;
+uint16_t warmNeonOffset = 0;
+uint16_t moodyHue = 0;
 
 // Strip 2 pattern 2: star twinkle
 uint16_t starPhase[NUM_PIXELS2];
@@ -127,12 +129,18 @@ void flashSelectedStrip() {
   delay(100);
 }
 
+void setStripBrightness(int s) {
+  uint8_t b = BRIGHT_LEVELS[brightIndex[s]];
+  switch (s) {
+    case 0: strip.setBrightness(b);  break;
+    case 1: strip2.setBrightness(b); break;
+    case 2: strip3.setBrightness(b); break;
+    case 3: strip4.setBrightness(b); break;
+  }
+}
+
 void setAllBrightness() {
-  uint8_t b = BRIGHT_LEVELS[brightIndex];
-  strip.setBrightness(b);
-  strip2.setBrightness(b);
-  strip3.setBrightness(b);
-  strip4.setBrightness(b);
+  for (int i = 0; i < NUM_STRIPS; i++) setStripBrightness(i);
 }
 
 void handleButtons() {
@@ -142,9 +150,8 @@ void handleButtons() {
 
   // Both held: reset everything
   if (btn7 == LOW && btn8 == LOW) {
-    for (int i = 0; i < NUM_STRIPS; i++) patternIndex[i] = 0;
+    for (int i = 0; i < NUM_STRIPS; i++) { patternIndex[i] = 0; brightIndex[i] = 2; }
     selectedStrip = 1;
-    brightIndex = 2;
     btn7WaitingDoubleTap = false;
     btn8WaitingDoubleTap = false;
     setAllBrightness();
@@ -181,10 +188,10 @@ void handleButtons() {
   // Button 8 release (short press only)
   if (btn8 == HIGH && btn8Last == LOW && (now - btn8PressTime < LONG_PRESS_MS)) {
     if (btn8WaitingDoubleTap && (now - btn8LastReleaseTime < DOUBLE_TAP_MS)) {
-      // Double tap: brightness down
+      // Double tap: brightness down on selected strip
       btn8WaitingDoubleTap = false;
-      brightIndex = max(brightIndex - 1, 0);
-      setAllBrightness();
+      brightIndex[selectedStrip] = max(brightIndex[selectedStrip] - 1, 0);
+      setStripBrightness(selectedStrip);
     } else {
       // First tap: open double tap window
       btn8WaitingDoubleTap = true;
@@ -192,11 +199,11 @@ void handleButtons() {
     }
   }
 
-  // Double tap window expired: commit single tap (brightness up)
+  // Double tap window expired: commit single tap (brightness up on selected strip)
   if (btn8WaitingDoubleTap && (now - btn8LastReleaseTime >= DOUBLE_TAP_MS)) {
     btn8WaitingDoubleTap = false;
-    brightIndex = min(brightIndex + 1, NUM_BRIGHT_LEVELS - 1);
-    setAllBrightness();
+    brightIndex[selectedStrip] = min(brightIndex[selectedStrip] + 1, NUM_BRIGHT_LEVELS - 1);
+    setStripBrightness(selectedStrip);
   }
 
   btn7Last = btn7;
@@ -445,9 +452,93 @@ void drawStrip2() {
       }
       break;
     }
-    // case 3: add pattern 4 here
+    case 5: {
+      // Warm neon gradient: hot pink -> red -> orange -> yellow, drifting
+      for (int i = 0; i < NUM_PIXELS2; i++) {
+        uint16_t hue = (uint16_t)(58000 + warmNeonOffset + (uint16_t)(i * 3640));
+        strip2.setPixelColor(i, strip2.gamma32(strip2.ColorHSV(hue, 255, 180)));
+      }
+      warmNeonOffset += 60;
+      break;
+    }
+    case 3: {
+      // Blue center + moody cool surround (deep blues/purples/teals, slow shift)
+      moodyHue += 30;
+      uint16_t coolHue = 21845 + (moodyHue % 27307);
+      uint32_t c = strip2.gamma32(strip2.ColorHSV(coolHue, 220, 120));
+      strip2.setPixelColor(0, c);
+      strip2.setPixelColor(1, c);
+      strip2.setPixelColor(2, c);
+      strip2.setPixelColor(3, strip2.Color(0, 0, 180));
+      strip2.setPixelColor(4, strip2.Color(0, 0, 180));
+      strip2.setPixelColor(5, c);
+      break;
+    }
+    case 4: {
+      // Colorful star twinkle: full rainbow palette, every pixel always a saturated color
+      const uint16_t STAR_PERIOD = 180;
+      for (int i = 0; i < NUM_PIXELS2; i++) {
+        starPhase[i] += starSpeed[i];
+        if (starPhase[i] >= STAR_PERIOD) {
+          starPhase[i] = 0;
+          starHue[i]   = random(65536);
+          starSpeed[i] = random(4, 10);
+        }
+        uint16_t p = starPhase[i];
+        uint8_t bright = (p < STAR_PERIOD / 2)
+          ? (uint8_t)((p * 255) / (STAR_PERIOD / 2))
+          : (uint8_t)(((STAR_PERIOD - p) * 255) / (STAR_PERIOD / 2));
+        strip2.setPixelColor(i, strip2.gamma32(strip2.ColorHSV(starHue[i], 255, bright)));
+      }
+      break;
+    }
+    case 6: {
+      // Full rainbow gradient across all pixels, slowly cycling
+      for (int i = 0; i < NUM_PIXELS2; i++) {
+        uint16_t hue = rainbowHue + (uint16_t)(i * (65536 / NUM_PIXELS2));
+        strip2.setPixelColor(i, strip2.gamma32(strip2.ColorHSV(hue, 255, 200)));
+      }
+      break;
+    }
   }
   strip2.show();
+}
+
+void drawStrip4() {
+  twinkleTimer++;
+  int b0 = twinkleBrightness(twinkleTimer);
+  int b1 = twinkleBrightness(twinkleTimer + 200);
+  switch (patternIndex[3]) {
+    case 0: // Blue
+      strip4.setPixelColor(0, strip4.Color(0, 0, b0));
+      strip4.setPixelColor(1, strip4.Color(0, 0, b1));
+      break;
+    case 1: // Red
+      strip4.setPixelColor(0, strip4.Color(b0, 0, 0));
+      strip4.setPixelColor(1, strip4.Color(b1, 0, 0));
+      break;
+    case 2: // Green
+      strip4.setPixelColor(0, strip4.Color(0, b0, 0));
+      strip4.setPixelColor(1, strip4.Color(0, b1, 0));
+      break;
+    case 3: // White
+      strip4.setPixelColor(0, strip4.Color(b0, b0, b0));
+      strip4.setPixelColor(1, strip4.Color(b1, b1, b1));
+      break;
+    case 4: // Purple
+      strip4.setPixelColor(0, strip4.Color(b0 / 2, 0, b0));
+      strip4.setPixelColor(1, strip4.Color(b1 / 2, 0, b1));
+      break;
+    case 5: // Rainbow twinkle: two pixels on opposite sides of color wheel
+      strip4.setPixelColor(0, strip4.gamma32(strip4.ColorHSV(rainbowHue, 255, b0)));
+      strip4.setPixelColor(1, strip4.gamma32(strip4.ColorHSV(rainbowHue + 32768, 255, b1)));
+      break;
+    case 6: // Full rainbow gradient, solid (no twinkle)
+      strip4.setPixelColor(0, strip4.gamma32(strip4.ColorHSV(rainbowHue, 255, 200)));
+      strip4.setPixelColor(1, strip4.gamma32(strip4.ColorHSV(rainbowHue + 32768, 255, 200)));
+      break;
+  }
+  strip4.show();
 }
 
 void setup() {
@@ -479,11 +570,8 @@ void loop() {
   // --- Strip 3: city pattern ---
   drawStrip3();
 
-  // --- Strip 4: dim blue twinkle ---
-  twinkleTimer++;
-  strip4.setPixelColor(0, strip4.Color(0, 0, twinkleBrightness(twinkleTimer)));
-  strip4.setPixelColor(1, strip4.Color(0, 0, twinkleBrightness(twinkleTimer + 200)));
-  strip4.show();
+  // --- Strip 4: color twinkle ---
+  drawStrip4();
 
   rainbowHue += 300;
 
