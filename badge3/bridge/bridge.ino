@@ -566,6 +566,28 @@ void setup() {
   initStrip3Patterns();
 
   setAllBrightness();
+
+  // Startup strip check: flash each strip in sequence to confirm wiring
+  delay(300);
+  for (int i = 0; i < NUM_PIXELS;  i++) strip.setPixelColor(i,  strip.Color(100,100,100));
+  strip.show();  delay(400);
+  for (int i = 0; i < NUM_PIXELS;  i++) strip.setPixelColor(i,  0);
+  strip.show();  delay(150);
+
+  for (int i = 0; i < NUM_PIXELS2; i++) strip2.setPixelColor(i, strip2.Color(100,100,100));
+  strip2.show(); delay(400);
+  for (int i = 0; i < NUM_PIXELS2; i++) strip2.setPixelColor(i, 0);
+  strip2.show(); delay(150);
+
+  for (int i = 0; i < NUM_PIXELS3; i++) strip3.setPixelColor(i, strip3.Color(100,100,100));
+  strip3.show(); delay(400);
+  for (int i = 0; i < NUM_PIXELS3; i++) strip3.setPixelColor(i, 0);
+  strip3.show(); delay(150);
+
+  for (int i = 0; i < NUM_PIXELS4; i++) strip4.setPixelColor(i, strip4.Color(100,100,100));
+  strip4.show(); delay(400);
+  for (int i = 0; i < NUM_PIXELS4; i++) strip4.setPixelColor(i, 0);
+  strip4.show(); delay(150);
 }
 
 void loop() {
