@@ -1,4 +1,7 @@
 #include <Adafruit_NeoPixel.h>
+#include <avr/wdt.h>
+
+uint8_t resetCause __attribute__((section(".noinit")));
 
 #define PIN        12
 #define NUM_PIXELS 10
@@ -552,6 +555,10 @@ void drawStrip4() {
 }
 
 void setup() {
+  uint8_t mcusr = MCUSR;
+  MCUSR = 0;
+  wdt_disable();
+
   strip.begin();  strip.show();
   strip2.begin(); strip2.show();
   strip3.begin(); strip3.show();
@@ -566,6 +573,31 @@ void setup() {
   initStrip3Patterns();
 
   setAllBrightness();
+
+  // --- DEBUG: city strip shows reset cause (3s) then button states (2s) ---
+  // Reset cause color: green=normal, red=RESET pin, orange=brownout, blue=watchdog
+  uint8_t dr = 0, dg = 0, db = 0;
+  if      (mcusr & (1 << 1)) { dr = 150;           }  // EXTRF: RESET pin pulled low
+  else if (mcusr & (1 << 2)) { dr = 150; dg = 80;  }  // BORF:  brownout
+  else if (mcusr & (1 << 3)) { db = 150;           }  // WDRF:  watchdog
+  else                       { dg = 150;           }  // PORF:  clean power-on
+  for (int i = 0; i < NUM_PIXELS3; i++) strip3.setPixelColor(i, strip3.Color(dr, dg, db));
+  strip3.show();
+  delay(3000);
+
+  // Button states: dim green = ok, bright red/green = grounded (problem)
+  for (int i = 0; i < NUM_PIXELS3; i++) strip3.setPixelColor(i, 0);
+  bool b7low = digitalRead(BTN_PATTERN) == LOW;
+  bool b8low = digitalRead(BTN_BRIGHT)  == LOW;
+  strip3.setPixelColor(0, b7low ? strip3.Color(200, 0, 0)  : strip3.Color(0, 20, 0));
+  strip3.setPixelColor(1, b8low ? strip3.Color(0, 200, 0)  : strip3.Color(0, 20, 0));
+  if (b7low && b8low) strip3.setPixelColor(2, strip3.Color(200, 200, 0));
+  strip3.show();
+  delay(2000);
+
+  for (int i = 0; i < NUM_PIXELS3; i++) strip3.setPixelColor(i, 0);
+  strip3.show();
+  // --- END DEBUG ---
 
   // Startup strip check: flash each strip in sequence to confirm wiring
   delay(300);
