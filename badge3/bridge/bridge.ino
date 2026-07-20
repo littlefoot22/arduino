@@ -42,7 +42,9 @@ bool btn7WaitingDoubleTap = false;
 unsigned long btn7LastReleaseTime = 0;
 bool btn8WaitingDoubleTap = false;
 unsigned long btn8LastReleaseTime = 0;
+unsigned long bothHeldStart = 0;
 #define DOUBLE_TAP_MS 350
+#define BOTH_HELD_MS  1000
 
 // --- Strip 1 ---
 float offset = 0.0;
@@ -149,15 +151,22 @@ void handleButtons() {
   bool btn8 = digitalRead(BTN_BRIGHT);
   unsigned long now = millis();
 
-  // Both held: reset everything
+  // Both held: reset after sustained hold (non-blocking so lights keep running)
   if (btn7 == LOW && btn8 == LOW) {
-    for (int i = 0; i < NUM_STRIPS; i++) { patternIndex[i] = 0; brightIndex[i] = 2; }
-    selectedStrip = 1;
-    btn7WaitingDoubleTap = false;
-    btn8WaitingDoubleTap = false;
-    setAllBrightness();
-    delay(500);
+    if (bothHeldStart == 0) bothHeldStart = now;
+    if (now - bothHeldStart >= BOTH_HELD_MS) {
+      for (int i = 0; i < NUM_STRIPS; i++) { patternIndex[i] = 0; brightIndex[i] = 2; }
+      selectedStrip = 1;
+      btn7WaitingDoubleTap = false;
+      btn8WaitingDoubleTap = false;
+      setAllBrightness();
+      bothHeldStart = 0;
+    }
+    btn7Last = btn7;
+    btn8Last = btn8;
     return;
+  } else {
+    bothHeldStart = 0;
   }
 
   // Button 7 press
@@ -560,6 +569,12 @@ void setup() {
 }
 
 void loop() {
+  // DEBUG: lights first pixel red if btn7 grounded, green if btn8 grounded
+  // Remove these 4 lines once button wiring is confirmed good
+  strip.setPixelColor(0, digitalRead(BTN_PATTERN) == LOW ? strip.Color(40,0,0) : 0);
+  strip.setPixelColor(1, digitalRead(BTN_BRIGHT)  == LOW ? strip.Color(0,40,0) : 0);
+  strip.show();
+
   handleButtons();
 
   // --- Strip 1: bridge pattern ---
