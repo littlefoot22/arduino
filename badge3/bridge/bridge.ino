@@ -35,7 +35,7 @@ int brightIndex[NUM_STRIPS] = {2, 2, 2, 2};
 
 // --- Pattern ---
 int patternIndex[NUM_STRIPS] = {0, 0, 0, 0};
-const int NUM_STRIP_PATTERNS[NUM_STRIPS] = {4, 7, 5, 7};
+const int NUM_STRIP_PATTERNS[NUM_STRIPS] = {4, 9, 5, 7};
 int selectedStrip = 1;
 
 // --- Button state ---
@@ -511,6 +511,29 @@ void drawStrip2() {
         uint16_t hue = rainbowHue + (uint16_t)(i * (65536 / NUM_PIXELS2));
         strip2.setPixelColor(i, strip2.gamma32(strip2.ColorHSV(hue, 255, 200)));
       }
+      break;
+    }
+    case 7: {
+      // Sparse gentle twinkle: pixels 0, 3, 5 only, offset so they don't sync
+      int b0 = twinkleBrightness(twinkleTimer);
+      int b3 = twinkleBrightness(twinkleTimer + 133);
+      int b5 = twinkleBrightness(twinkleTimer + 267);
+      strip2.setPixelColor(0, strip2.Color(b0, b0, b0));
+      strip2.setPixelColor(1, 0);
+      strip2.setPixelColor(2, 0);
+      strip2.setPixelColor(3, strip2.Color(b3, b3, b3));
+      strip2.setPixelColor(4, 0);
+      strip2.setPixelColor(5, strip2.Color(b5, b5, b5));
+      break;
+    }
+    case 8: {
+      // Sparse rainbow: pixels 0, 3, 5 each a different hue, slowly cycling
+      strip2.setPixelColor(0, strip2.gamma32(strip2.ColorHSV(rainbowHue,         255, 180)));
+      strip2.setPixelColor(1, 0);
+      strip2.setPixelColor(2, 0);
+      strip2.setPixelColor(3, strip2.gamma32(strip2.ColorHSV(rainbowHue + 21845, 255, 180)));
+      strip2.setPixelColor(4, 0);
+      strip2.setPixelColor(5, strip2.gamma32(strip2.ColorHSV(rainbowHue + 43690, 255, 180)));
       break;
     }
   }
