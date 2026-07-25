@@ -606,7 +606,7 @@ void setup() {
   else                       { dg = 150;           }  // PORF:  clean power-on
   for (int i = 0; i < NUM_PIXELS3; i++) strip3.setPixelColor(i, strip3.Color(dr, dg, db));
   strip3.show();
-  delay(3000);
+  delay(1200);
 
   // Button states: dim green = ok, bright red/green = grounded (problem)
   for (int i = 0; i < NUM_PIXELS3; i++) strip3.setPixelColor(i, 0);
@@ -616,7 +616,7 @@ void setup() {
   strip3.setPixelColor(1, b8low ? strip3.Color(0, 200, 0)  : strip3.Color(0, 20, 0));
   if (b7low && b8low) strip3.setPixelColor(2, strip3.Color(200, 200, 0));
   strip3.show();
-  delay(2000);
+  delay(800);
 
   for (int i = 0; i < NUM_PIXELS3; i++) strip3.setPixelColor(i, 0);
   strip3.show();
