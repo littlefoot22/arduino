@@ -589,10 +589,10 @@ void setup() {
 
   pinMode(BTN_PATTERN, INPUT_PULLUP);
   pinMode(BTN_BRIGHT,  INPUT_PULLUP);
-  pinMode(11, OUTPUT);
+  pinMode(5, OUTPUT);
   for (int i = 0; i < 3; i++) {
-    digitalWrite(11, HIGH); delay(200);
-    digitalWrite(11, LOW);  delay(200);
+    digitalWrite(5, HIGH); delay(200);
+    digitalWrite(5, LOW);  delay(200);
   }
 
   randomSeed(analogRead(A0));
