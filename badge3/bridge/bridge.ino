@@ -589,6 +589,11 @@ void setup() {
 
   pinMode(BTN_PATTERN, INPUT_PULLUP);
   pinMode(BTN_BRIGHT,  INPUT_PULLUP);
+  pinMode(11, OUTPUT);
+  for (int i = 0; i < 3; i++) {
+    digitalWrite(11, HIGH); delay(200);
+    digitalWrite(11, LOW);  delay(200);
+  }
 
   randomSeed(analogRead(A0));
   for (int i = 0; i < CITY_PIXELS; i++) randomizeCityPixel(i);
