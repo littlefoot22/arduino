@@ -1,6 +1,6 @@
 instructions
 
-![](photos/9F7ECC06-607F-4209-AE96-754A8DE580D1.jpeg)
+![](photos/F7F57FEF-15FF-4BF1-8030-7C12093E4E0E.jpeg)
 
 ![](photos/172D47F2-437D-46A4-9A22-5507A1F54113.jpeg)
 
