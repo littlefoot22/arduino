@@ -67,20 +67,42 @@ def open_board():
     return serial
 
 
-def list_scripts(serial, directory: str) -> list[str]:
-    """Returns the file names in `directory`."""
-    serial.change_directory(directory)
-    result = serial.list_current_directory()
+def unwrap(result, what: str):
+    """Returns the value inside a Result, or None after reporting the error."""
+    if hasattr(result, "is_err") and result.is_err():
+        print(f"{what} failed: {result.err_value}", file=sys.stderr)
+        return None
+    if hasattr(result, "ok_value"):
+        return result.ok_value
+    return result
 
-    contents = getattr(result, "ok_value", None) or getattr(result, "value", None) or result
-    items = getattr(contents, "items", None) or getattr(contents, "files", None) or []
 
-    names = []
-    for item in items:
-        name = getattr(item, "name", None) or str(item)
-        if name not in (".", ".."):
-            names.append(name)
-    return names
+def list_scripts(serial, directory: str) -> list:
+    """Returns the FileSystemItems in `directory`.
+
+    The listing is parsed out of the board's own file menu, so the directory has
+    to be entered first - change_directory() is what puts the menu there.
+    """
+    if unwrap(serial.change_directory(directory), f"cd {directory}") is None:
+        return []
+
+    contents = unwrap(serial.list_current_directory(), "listing")
+    if contents is None:
+        return []
+
+    # The field is `contents`, per freewili.types.FileSystemContents. Getting
+    # this wrong is silent: the wrong attribute name simply yields nothing, and
+    # an empty board looks identical to a parsing mistake.
+    items = getattr(contents, "contents", None)
+    if items is None:
+        print(f"Unexpected listing shape: {contents!r}", file=sys.stderr)
+        return []
+
+    return [item for item in items if getattr(item, "name", "") not in (".", "..")]
+
+
+def item_name(item) -> str:
+    return getattr(item, "name", str(item))
 
 
 def main() -> int:
@@ -103,13 +125,17 @@ def main() -> int:
         return 1
 
     try:
-        present = list_scripts(serial, args.directory)
+        items = list_scripts(serial, args.directory)
+        present = [item_name(i) for i in items]
 
         if args.list or not (args.probes or args.delete):
-            print(f"{args.directory}: {len(present)} file(s)")
-            for name in sorted(present):
-                tag = "  (app)" if name in KEEP else ""
-                print(f"   {name}{tag}")
+            print(f"{args.directory}: {len(present)} entr(y/ies)")
+            for item in sorted(items, key=item_name):
+                name = item_name(item)
+                size = getattr(item, "size", 0)
+                kind = getattr(getattr(item, "file_type", None), "name", "")
+                tag = "  <- app" if name in KEEP else ""
+                print(f"   {name:<24} {size:>7} bytes  {kind}{tag}")
             if args.list:
                 return 0
 
