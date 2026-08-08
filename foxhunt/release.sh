@@ -18,6 +18,7 @@ cp build/imports*.wasm dist/
 cp build/step*.wasm dist/
 cp build/limits*.wasm dist/
 cp build/radiocfg*.wasm dist/
+cp build/hunt*.wasm dist/
 
 echo
 echo "dist/foxhunt.wasm refreshed"
