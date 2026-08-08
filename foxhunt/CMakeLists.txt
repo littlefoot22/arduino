@@ -208,11 +208,28 @@ foreach(hstep RANGE 1 6)
     list(APPEND HUNT_TARGETS hunt${hstep})
 endforeach()
 
+# One hunt app per fox: single screen, single frequency, mute and exit.
+# See tools/fox.cpp.
+set(FOX_TARGETS "")
+foreach(idx RANGE 0 4)
+    math(EXPR foxnum "${idx} + 6")
+    add_executable(fox${foxnum} tools/fox.cpp src/cc1101.cpp src/df.cpp src/wasm_rt.cpp)
+    target_include_directories(fox${foxnum} PRIVATE src)
+    target_link_libraries(fox${foxnum} PUBLIC fwwasm)
+    target_compile_definitions(fox${foxnum} PRIVATE FOX_INDEX=${idx})
+    target_compile_options(fox${foxnum} PRIVATE ${WARNING_ARGS} ${WASM_COMPILER_ARGS})
+    target_link_options(fox${foxnum} PRIVATE ${WASM_LINKER_ARGS})
+    set_target_properties(fox${foxnum} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+    )
+    list(APPEND FOX_TARGETS fox${foxnum})
+endforeach()
+
 # Assert no post-MVP feature crept into any object. A module declaring one is
 # rejected by the device silently, so this has to be caught at build time.
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
-    foreach(target foxhunt hello probe ${IMPORT_TIER_TARGETS} ${STEP_TARGETS} ${LIMIT_TARGETS} ${RADIOCFG_TARGETS} ${HUNT_TARGETS})
+    foreach(target foxhunt hello probe ${IMPORT_TIER_TARGETS} ${STEP_TARGETS} ${LIMIT_TARGETS} ${RADIOCFG_TARGETS} ${HUNT_TARGETS} ${FOX_TARGETS})
         add_custom_command(TARGET ${target} POST_BUILD
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tools/verify_mvp.py
