@@ -110,6 +110,26 @@ set_target_properties(probe PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
+# Cumulative ladder from the known-good hello baseline up to the full set of
+# host calls the app needs, one addition per step. See tools/step.cpp.
+set(STEP_TARGETS "")
+foreach(step RANGE 1 11)
+    if(step LESS 10)
+        set(name step0${step})
+    else()
+        set(name step${step})
+    endif()
+    add_executable(${name} tools/step.cpp)
+    target_link_libraries(${name} PUBLIC fwwasm)
+    target_compile_definitions(${name} PRIVATE STEP=${step})
+    target_compile_options(${name} PRIVATE ${WARNING_ARGS} ${WASM_COMPILER_ARGS})
+    target_link_options(${name} PRIVATE ${WASM_LINKER_ARGS})
+    set_target_properties(${name} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+    )
+    list(APPEND STEP_TARGETS ${name})
+endforeach()
+
 # Import bisector, one binary per group of host functions under test. An
 # unresolvable import breaks instantiation, so these find which group the
 # firmware does not provide. See tools/imports.cpp.
@@ -130,7 +150,7 @@ endforeach()
 # rejected by the device silently, so this has to be caught at build time.
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
-    foreach(target foxhunt hello probe ${IMPORT_TIER_TARGETS})
+    foreach(target foxhunt hello probe ${IMPORT_TIER_TARGETS} ${STEP_TARGETS})
         add_custom_command(TARGET ${target} POST_BUILD
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tools/verify_mvp.py
