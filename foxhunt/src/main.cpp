@@ -68,6 +68,20 @@ struct App {
 
 App g_app;
 
+/// Lights a startup stage marker.
+///
+/// The app has no other way to report progress when the display is blank, and
+/// unlike the screen these survive whatever the firmware is doing:
+///
+///   LED 0 white    main() entered
+///   LED 1 blue     panels built
+///   LED 2 green    first panel shown
+///   LED 3 cyan     reached the main loop
+///   LED 6 red      pulsing heartbeat
+void stage_led(int index, int r, int g, int b) {
+    setBoardLED(index, r, g, b, 60000, ledsimplevalue);
+}
+
 /// Loads a receive configuration for `hz` and parks the radio in RX.
 bool tune(uint32_t hz, int gain_step, int bw_index) {
     uint8_t config[cc1101::kConfigBytes];
@@ -157,7 +171,9 @@ void run_band_scan() {
 
 void enter_select() {
     g_app.screen = Screen::kSelect;
-    ui::clear_leds();
+    // Deliberately not clearing the LEDs here: they carry the startup stage
+    // markers set in main(), which are the only diagnostic available if the
+    // screen stays blank.
     ui::show_select(g_app.fox_index);
 }
 
@@ -336,6 +352,10 @@ void service_screen() {
 int main() {
     using namespace foxhunt;
 
+    // Proof of life before anything else, so a blank screen can still be told
+    // apart from a module that never ran.
+    stage_led(0, 255, 255, 255);
+
     // Static constructors are not guaranteed to run under -nostdlib with
     // --no-entry, so bring every piece of mutable state up explicitly.
     g_app.screen = Screen::kSelect;
@@ -364,7 +384,12 @@ int main() {
     // call.
 
     ui::build_all();
+    stage_led(1, 0, 0, 255);
+
     enter_select();
+    stage_led(2, 0, 255, 0);
+
+    stage_led(3, 0, 255, 255);
 
     while (!g_app.should_exit) {
         pump_events();
@@ -372,6 +397,12 @@ int main() {
             break;
         }
         service_screen();
+
+        // Heartbeat, so a running app is distinguishable from a frozen one.
+        if ((g_app.frame % 20) == 0) {
+            setBoardLED(6, 255, 0, 0, 400, ledpulsefade);
+        }
+
         waitms(static_cast<int>(kSampleMs));
         g_app.now_ms += kSampleMs;
     }
