@@ -159,6 +159,49 @@ constexpr int kRoseRadius = 74;
 
 Buf g_buf;
 
+// Cached last-written values.
+//
+// Every host call costs the display processor something, and this firmware
+// falls over when asked for too many. Repainting the hunt screen unconditionally
+// came to 46 calls a second - seven controls plus seven LEDs, three times a
+// second - against the 20 a second that had already locked the board once. Most
+// of those wrote a value identical to the one already on screen.
+//
+// So nothing is sent unless it changed. A steady signal costs nothing at all.
+struct HuntCache {
+    int fox_index;
+    int dbm;
+    int percent;
+    int trend;
+    int gain_step;
+    int bw_index;
+    int peak;
+    int trough;
+    bool valid;
+};
+
+HuntCache g_hunt_cache;
+int g_led_lit;
+
+/// Last glyph written to each rose sector. These are string literals, so
+/// comparing the pointer is enough to know whether anything changed.
+const char* g_rose_glyph[df::kRoseSectors];
+int g_rose_bearing;
+
+/// Forces the next repaint to write everything, whatever the cache says.
+void invalidate_hunt_cache() {
+    g_hunt_cache.valid = false;
+    g_led_lit = -1;
+}
+
+/// Same for the rose.
+void invalidate_rose_cache() {
+    for (int i = 0; i < df::kRoseSectors; ++i) {
+        g_rose_glyph[i] = nullptr;
+    }
+    g_rose_bearing = -999;
+}
+
 void set_text(int panel, int control, const char* text) { setControlValueText(panel, control, text); }
 
 /// Renders one rose sector as a glyph whose weight tracks signal strength.
@@ -268,9 +311,16 @@ void show_select(int selected_index) {
     showPanel(kPanelSelect);
 }
 
-void show_hunt() { showPanel(kPanelHunt); }
+void show_hunt() {
+    // Entering the screen must repaint everything, whatever was cached.
+    invalidate_hunt_cache();
+    showPanel(kPanelHunt);
+}
 
-void show_rose() { showPanel(kPanelRose); }
+void show_rose() {
+    invalidate_rose_cache();
+    showPanel(kPanelRose);
+}
 
 // ----------------------------------------------------------------- update ---
 
@@ -287,51 +337,82 @@ void update_select(int selected_index) {
 
 void update_hunt(int fox_index, const df::Meter& meter, int gain_step, int bw_index, bool tunable) {
     const Fox& fox = kFoxes[fox_index];
+    HuntCache& cache = g_hunt_cache;
+    const bool all = !cache.valid;
 
-    set_text(kPanelHunt, kHuntFox, fox.name);
-
-    g_buf.clear();
-    g_buf.mhz(fox.freq_hz).str(" MHz");
-    set_text(kPanelHunt, kHuntFreq, g_buf.c_str());
+    // Fox name and frequency change only when the target does.
+    if (all || cache.fox_index != fox_index) {
+        set_text(kPanelHunt, kHuntFox, fox.name);
+        g_buf.clear();
+        g_buf.mhz(fox.freq_hz).str(" MHz");
+        set_text(kPanelHunt, kHuntFreq, g_buf.c_str());
+        cache.fox_index = fox_index;
+    }
 
     if (!tunable) {
-        setControlValue(kPanelHunt, kHuntDbm, 0);
-        setControlValue(kPanelHunt, kHuntBar, 0);
-        set_text(kPanelHunt, kHuntTrend, "OUT OF BAND");
-        set_text(kPanelHunt, kHuntPeak, " ");
+        if (all || cache.trend != -99) {
+            setControlValue(kPanelHunt, kHuntDbm, 0);
+            setControlValue(kPanelHunt, kHuntBar, 0);
+            set_text(kPanelHunt, kHuntTrend, "OUT OF BAND");
+            cache.trend = -99;
+        }
+        cache.valid = true;
         return;
     }
 
+    const int dbm = meter.valid() ? meter.smoothed() : 0;
     const int percent = meter.level();
 
-    setControlValue(kPanelHunt, kHuntDbm, meter.valid() ? meter.smoothed() : 0);
-    setControlValue(kPanelHunt, kHuntBar, percent);
-
-    g_buf.clear();
-    if (meter.valid()) {
-        g_buf.str("dBm   peak ").num(meter.peak()).str("  low ").num(meter.trough());
-    } else {
-        g_buf.str("waiting for receiver");
+    if (all || cache.dbm != dbm) {
+        setControlValue(kPanelHunt, kHuntDbm, dbm);
+        cache.dbm = dbm;
     }
-    set_text(kPanelHunt, kHuntPeak, g_buf.c_str());
-
-    switch (meter.trend()) {
-        case df::Trend::kWarmer:
-            set_text(kPanelHunt, kHuntTrend, ">>> WARMER");
-            break;
-        case df::Trend::kColder:
-            set_text(kPanelHunt, kHuntTrend, "<<< colder");
-            break;
-        case df::Trend::kFlat:
-        default:
-            set_text(kPanelHunt, kHuntTrend, "--- steady");
-            break;
+    if (all || cache.percent != percent) {
+        setControlValue(kPanelHunt, kHuntBar, percent);
+        cache.percent = percent;
     }
 
-    g_buf.clear();
-    g_buf.str("ATT ").num(gain_step).ch('/').num(cc1101::kGainSteps - 1);
-    g_buf.str("   BW ").num(static_cast<int>(cc1101::kBwKhz[bw_index])).str(" kHz");
-    set_text(kPanelHunt, kHuntGain, g_buf.c_str());
+    const int peak = meter.peak();
+    const int trough = meter.trough();
+    if (all || cache.peak != peak || cache.trough != trough) {
+        g_buf.clear();
+        if (meter.valid()) {
+            g_buf.str("dBm   peak ").num(peak).str("  low ").num(trough);
+        } else {
+            g_buf.str("waiting for receiver");
+        }
+        set_text(kPanelHunt, kHuntPeak, g_buf.c_str());
+        cache.peak = peak;
+        cache.trough = trough;
+    }
+
+    const int trend = static_cast<int>(meter.trend());
+    if (all || cache.trend != trend) {
+        switch (meter.trend()) {
+            case df::Trend::kWarmer:
+                set_text(kPanelHunt, kHuntTrend, ">>> WARMER");
+                break;
+            case df::Trend::kColder:
+                set_text(kPanelHunt, kHuntTrend, "<<< colder");
+                break;
+            case df::Trend::kFlat:
+            default:
+                set_text(kPanelHunt, kHuntTrend, "--- steady");
+                break;
+        }
+        cache.trend = trend;
+    }
+
+    if (all || cache.gain_step != gain_step || cache.bw_index != bw_index) {
+        g_buf.clear();
+        g_buf.str("ATT ").num(gain_step).ch('/').num(cc1101::kGainSteps - 1);
+        g_buf.str("   BW ").num(static_cast<int>(cc1101::kBwKhz[bw_index])).str(" kHz");
+        set_text(kPanelHunt, kHuntGain, g_buf.c_str());
+        cache.gain_step = gain_step;
+        cache.bw_index = bw_index;
+    }
+
+    cache.valid = true;
 }
 
 void set_hunt_status(const char* text) { set_text(kPanelHunt, kHuntStatus, text); }
@@ -359,27 +440,48 @@ void update_rose(const df::RotationScan& scan, uint32_t now_ms) {
     const int strongest = scan.strongest_db();
     const int weakest = scan.weakest_db();
 
+    // Only the sectors whose glyph actually changed. Rewriting all eight plus
+    // the readouts on every repaint is the same flood that took down the hunt
+    // screen.
     for (int i = 0; i < df::kRoseSectors; ++i) {
-        set_text(kPanelRose, kRoseFirstDot + i,
-                 rose_glyph(scan.sector_level(i), weakest, strongest, scan.sector_filled(i),
-                            i == best));
+        const char* glyph = rose_glyph(scan.sector_level(i), weakest, strongest,
+                                       scan.sector_filled(i), i == best);
+        if (glyph != g_rose_glyph[i]) {
+            set_text(kPanelRose, kRoseFirstDot + i, glyph);
+            g_rose_glyph[i] = glyph;
+        }
     }
 
-    g_buf.clear();
     if (scan.active()) {
-        g_buf.num(scan.progress_pct(now_ms)).ch('%');
-        set_text(kPanelRose, kRoseBearing, g_buf.c_str());
-        set_text(kPanelRose, kRoseDetail, "turning...");
+        // Progress moves in whole percent; only write it when it ticks over.
+        const int progress = scan.progress_pct(now_ms);
+        if (progress != g_rose_bearing) {
+            g_buf.clear();
+            g_buf.num(progress).ch('%');
+            set_text(kPanelRose, kRoseBearing, g_buf.c_str());
+            set_text(kPanelRose, kRoseDetail, "turning...");
+            g_rose_bearing = progress;
+        }
         return;
     }
 
     if (!scan.has_result() || best < 0) {
-        set_text(kPanelRose, kRoseBearing, "--");
-        set_text(kPanelRose, kRoseDetail, "press START, then turn");
+        if (g_rose_bearing != -1) {
+            set_text(kPanelRose, kRoseBearing, "--");
+            set_text(kPanelRose, kRoseDetail, "press START, then turn");
+            g_rose_bearing = -1;
+        }
         return;
     }
 
-    g_buf.num(scan.bearing_deg()).str(" deg");
+    const int bearing = scan.bearing_deg();
+    if (bearing == g_rose_bearing) {
+        return;
+    }
+    g_rose_bearing = bearing;
+
+    g_buf.clear();
+    g_buf.num(bearing).str(" deg");
     set_text(kPanelRose, kRoseBearing, g_buf.c_str());
 
     // A rose with little variation means the bearing is not trustworthy: the
@@ -387,7 +489,7 @@ void update_rose(const df::RotationScan& scan, uint32_t now_ms) {
     // shielding no longer produces a null.
     const int contrast = scan.contrast_db();
     g_buf.clear();
-    g_buf.str("peak ").num(strongest).str(" dBm  null depth ").num(contrast).str(" dB");
+    g_buf.str("peak ").num(strongest).str(" dBm  null ").num(contrast).str(" dB");
     set_text(kPanelRose, kRoseDetail, g_buf.c_str());
     set_text(kPanelRose, kRoseHint,
              contrast >= 6 ? "Good null - walk that way"
@@ -397,8 +499,18 @@ void update_rose(const df::RotationScan& scan, uint32_t now_ms) {
 void update_leds(int percent) {
     // Light LEDs proportionally, green through amber to red as signal climbs,
     // so the board reads as a meter from the corner of your eye.
+    //
+    // Only the LEDs that change are written. Rewriting all seven on every
+    // repaint was the single largest source of host traffic on this screen.
     const int lit = (percent * kBoardLeds) / 100;
-    for (int i = 0; i < kBoardLeds; ++i) {
+    if (lit == g_led_lit) {
+        return;
+    }
+
+    const int from = (g_led_lit < 0) ? 0 : (lit < g_led_lit ? lit : g_led_lit);
+    const int to = (g_led_lit < 0) ? kBoardLeds : (lit > g_led_lit ? lit : g_led_lit);
+
+    for (int i = from; i < to && i < kBoardLeds; ++i) {
         if (i < lit) {
             const int ramp = (i * 255) / (kBoardLeds - 1);
             board_led(i, ramp, 255 - ramp, 0, 200, ledsimplevalue);
@@ -406,9 +518,12 @@ void update_leds(int percent) {
             board_led(i, 0, 0, 0, 200, ledsimplevalue);
         }
     }
+
+    g_led_lit = lit;
 }
 
 void clear_leds() {
+    g_led_lit = -1;
     for (int i = 0; i < kBoardLeds; ++i) {
         board_led(i, 0, 0, 0, 100, ledsimplevalue);
     }
