@@ -134,31 +134,50 @@ void flash_event_led(int event) {
 /// call slim is worth one global.
 uint8_t g_config[cc1101::kConfigBytes];
 
+/// What the radio actually said when asked to retune.
+///
+/// RadioLoadConfig() is the one call in the API documented as @todo, with no
+/// vendor example to copy, so the register blob format is an inference. Its
+/// return code is recorded rather than acted on: a failure here used to abort
+/// the measurement entirely, which produced a scan of empty rows and no clue
+/// why. Reading RSSI from a radio that ignored the config still yields a
+/// number, and seeing that number is what tells us whether the config took.
+struct TuneResult {
+    bool built = false;  ///< the blob was generated
+    int cfg_rc = -1;     ///< RadioLoadConfig() return
+    int rx_rc = -1;      ///< RadioSetRx() return
+};
+
+TuneResult g_last_tune;
+
 /// Loads a receive configuration for `hz` and parks the radio in RX.
-bool tune(uint32_t hz, int gain_step, int bw_index) {
+///
+/// Carries on past a rejected config deliberately - see TuneResult.
+TuneResult tune(uint32_t hz, int gain_step, int bw_index) {
+    TuneResult result;
+
     const size_t len =
         cc1101::build_rx_config(g_config, sizeof(g_config), hz, gain_step, bw_index);
-    if (len == 0U) {
-        return false;
-    }
+    result.built = (len != 0U);
 
     RadioSetIdle(kRadio);
-    if (RadioLoadConfig(kRadio, g_config, static_cast<int>(len)) == 0) {
-        return false;
+    if (result.built) {
+        result.cfg_rc = RadioLoadConfig(kRadio, g_config, static_cast<int>(len));
     }
-    if (RadioSetRx(kRadio) == 0) {
-        return false;
-    }
+    result.rx_rc = RadioSetRx(kRadio);
 
     waitms(static_cast<int>(kRetuneSettleMs));
-    return true;
+
+    g_last_tune = result;
+    return result;
 }
 
 /// Retunes to the selected fox and clears any now-stale signal history.
 void retune_current() {
-    g_app.tuned_ok = tune(kFoxes[g_app.fox_index].freq_hz, g_app.gain_step, g_app.bw_index);
+    const TuneResult result = tune(kFoxes[g_app.fox_index].freq_hz, g_app.gain_step, g_app.bw_index);
+    g_app.tuned_ok = result.built;
     g_app.meter.reset();
-    ui::set_hunt_status(g_app.tuned_ok ? "" : "radio config rejected");
+    ui::set_hunt_tune_status(result.built, result.cfg_rc, result.rx_rc);
 }
 
 int read_rssi_dbm() { return cc1101::normalize_rssi(RadioGetRSSI(kRadio)); }
@@ -225,7 +244,13 @@ void service_band_scan() {
     // First pass on a channel: tune to it.
     if (g_app.scan_sample == 0) {
         g_app.scan_peak = -200;
-        if (!tune(kFoxes[g_app.scan_index].freq_hz, g_app.gain_step, g_app.bw_index)) {
+        const TuneResult result =
+            tune(kFoxes[g_app.scan_index].freq_hz, g_app.gain_step, g_app.bw_index);
+        ui::set_scan_status(g_app.scan_index, result.cfg_rc, result.rx_rc);
+        if (!result.built) {
+            // Only a frequency this part cannot synthesise gets skipped; a
+            // refused config still gets measured, so the reading can be
+            // compared against the others.
             ui::update_scan_row(g_app.scan_index, 0, false, -1);
             ++g_app.scan_index;
             return;

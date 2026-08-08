@@ -52,6 +52,12 @@ void clear_leds();
 /// Writes `text` into a message line on the hunt panel.
 void set_hunt_status(const char* text);
 
+/// Reports what the radio said about the last retune, on the hunt panel.
+void set_hunt_tune_status(bool built, int cfg_rc, int rx_rc);
+
+/// Reports scan progress and the radio's return codes, on the scan panel.
+void set_scan_status(int channel, int cfg_rc, int rx_rc);
+
 /// Shows the most recent unrecognised event code on the select panel.
 ///
 /// The firmware sends events this app does not have names for, and the header

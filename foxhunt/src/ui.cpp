@@ -154,6 +154,7 @@ enum RoseControl : int {
 
 enum ScanControl : int {
     kScanTitle = 0,
+    kScanStatus = 11,
     // One text control per row carries the fox name and its reading together,
     // rather than two, which halves the control count on this panel.
     kScanFirstRow = 1,  // five rows: 1-5
@@ -273,6 +274,7 @@ void build_all() {
         addControlBargraph(kPanelScan, kScanFirstBar + i, 1, 150, y, 160, 20, 0, 100, kGreen.r,
                            kGreen.g, kGreen.b);
     }
+    addControlText(kPanelScan, kScanStatus, 8, 218, kMono, kTextSmall, kDim.r, kDim.g, kDim.b, " ");
     setPanelMenuText(kPanelScan, 0, " ");
     setPanelMenuText(kPanelScan, 1, " ");
     setPanelMenuText(kPanelScan, 2, "RESCAN");
@@ -355,6 +357,22 @@ void update_hunt(int fox_index, const df::Meter& meter, int gain_step, int bw_in
 }
 
 void set_hunt_status(const char* text) { set_text(kPanelHunt, kHuntStatus, text); }
+
+void set_hunt_tune_status(bool built, int cfg_rc, int rx_rc) {
+    g_buf.clear();
+    if (!built) {
+        g_buf.str("out of band");
+    } else {
+        g_buf.str("cfg ").num(cfg_rc).str("  rx ").num(rx_rc);
+    }
+    set_text(kPanelHunt, kHuntStatus, g_buf.c_str());
+}
+
+void set_scan_status(int channel, int cfg_rc, int rx_rc) {
+    g_buf.clear();
+    g_buf.str("ch ").num(channel).str("  cfg ").num(cfg_rc).str("  rx ").num(rx_rc);
+    set_text(kPanelScan, kScanStatus, g_buf.c_str());
+}
 
 void set_select_debug(int last_event, int count) {
     g_buf.clear();
