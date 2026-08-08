@@ -266,8 +266,11 @@ int tone_hz_for(int percent) {
 
 int chirp_interval_ms_for(int percent) {
     const int pct = clamp(percent, 0, 100);
-    // 700 ms when cold down to 90 ms when hot.
-    return 700 - ((pct * 610) / 100);
+    // 700 ms when cold down to 250 ms when hot. The floor is deliberately not
+    // lower: chirps closer together than that stop reading as separate ticks
+    // and start sounding like a fault, which is not what you want strapped to
+    // your chest for an hour.
+    return 700 - ((pct * 450) / 100);
 }
 
 }  // namespace foxhunt::df

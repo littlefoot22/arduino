@@ -195,51 +195,34 @@ const char* rose_glyph(int level_db, int weakest, int strongest, bool filled, bo
     return "-";
 }
 
-/// Lights a build-stage marker.
-///
-/// build_all() is where the app stops on this firmware, and the screen cannot
-/// report that, so each panel signs off on an LED as it completes.
-void mark(int led, int r, int g, int b) { setBoardLED(led, r, g, b, 60000, ledsimplevalue); }
-
 }  // namespace
 
 // ------------------------------------------------------------ construction --
 
 void build_all() {
     // ---- fox select ----
-    //
-    // Instrumented call by call. The app stops somewhere in this panel, and
-    // these are the only fourteen calls it makes before it does.
-    addPanel(kPanelSelect, 1, 0, 0, 0, kBg.r, kBg.g, kBg.b, 1);
-    mark(1, 0, 0, 255);  // addPanel survived
+    addPanel(kPanelSelect, 1, 1, 0, 0, kBg.r, kBg.g, kBg.b, 1);
 
     addControlText(kPanelSelect, kSelTitle, 8, 4, kProp, kTextTitle, kAmber.r, kAmber.g, kAmber.b,
                    "FOXHUNT  70cm");
-    mark(2, 0, 255, 0);  // first text control survived
 
     for (int i = 0; i < kFoxCount; ++i) {
         addControlText(kPanelSelect, kSelFirstRow + i, 14, 44 + (i * 28), kMono, kTextRow, kWhite.r,
                        kWhite.g, kWhite.b, " ");
     }
-    mark(3, 255, 255, 0);  // five more text controls survived
 
     addControlText(kPanelSelect, kSelNote, 8, 200, kProp, kTextSmall, kDim.r, kDim.g, kDim.b,
                    "Fox 1-5 are 2m - outside CC1101 range");
-    mark(4, 255, 0, 255);  // a 36 character string survived
 
-    // Menu captions. Only indices 0 and 1 have ever been exercised by a probe,
-    // so 2, 3 and 4 are unproven ground.
     setPanelMenuText(kPanelSelect, 0, "UP");
     setPanelMenuText(kPanelSelect, 1, "DOWN");
-    mark(5, 0, 255, 255);  // menu slots 0 and 1 survived
 
     setPanelMenuText(kPanelSelect, 2, "HUNT");
     setPanelMenuText(kPanelSelect, 3, "SCAN");
     setPanelMenuText(kPanelSelect, 4, "EXIT");
-    mark(6, 255, 255, 255);  // menu slots 2-4 survived, panel complete
 
     // ---- hunt meter ----
-    addPanel(kPanelHunt, 1, 0, 0, 0, kBg.r, kBg.g, kBg.b, 1);
+    addPanel(kPanelHunt, 1, 1, 0, 0, kBg.r, kBg.g, kBg.b, 1);
     addControlText(kPanelHunt, kHuntFox, 8, 4, kProp, kTextTitle, kAmber.r, kAmber.g, kAmber.b,
                    "FOX");
     addControlText(kPanelHunt, kHuntFreq, 150, 10, kMono, kTextLabel, kDim.r, kDim.g, kDim.b, " ");
@@ -259,7 +242,7 @@ void build_all() {
     setPanelMenuText(kPanelHunt, 4, "EXIT");
 
     // ---- rotation rose ----
-    addPanel(kPanelRose, 1, 0, 0, 0, kBg.r, kBg.g, kBg.b, 1);
+    addPanel(kPanelRose, 1, 1, 0, 0, kBg.r, kBg.g, kBg.b, 1);
     addControlText(kPanelRose, kRoseTitle, 8, 4, kProp, kTextLabel, kAmber.r, kAmber.g, kAmber.b,
                    "ROTATION SCAN");
     for (int i = 0; i < df::kRoseSectors; ++i) {
@@ -280,7 +263,7 @@ void build_all() {
     setPanelMenuText(kPanelRose, 4, "EXIT");
 
     // ---- band scan ----
-    addPanel(kPanelScan, 1, 0, 0, 0, kBg.r, kBg.g, kBg.b, 1);
+    addPanel(kPanelScan, 1, 1, 0, 0, kBg.r, kBg.g, kBg.b, 1);
     addControlText(kPanelScan, kScanTitle, 8, 4, kProp, kTextTitle, kAmber.r, kAmber.g, kAmber.b,
                    "BAND SCAN");
     for (int i = 0; i < kFoxCount; ++i) {

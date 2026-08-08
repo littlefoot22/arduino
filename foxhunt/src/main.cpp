@@ -68,22 +68,37 @@ struct App {
 
 App g_app;
 
-/// Lights a startup stage marker.
+/// Flashes the LED matching a received event, so button delivery can be
+/// observed without a working log channel.
 ///
-/// The app has no other way to report progress when the display is blank, and
-/// unlike the screen these survive whatever the firmware is doing:
+/// The firmware handles buttons itself on this board, since
+/// setCanDisplayReactToButtons() does not exist here to stop it. Whether
+/// presses ALSO reach the app is the open question, and this answers it:
 ///
-///   LED 0 white    main() entered
-///   LED 1 blue     addPanel returned
-///   LED 2 green    first text control returned
-///   LED 3 yellow   the five fox rows returned
-///   LED 4 magenta  the long note string returned
-///   LED 5 cyan     menu slots 0 and 1 returned
-///   LED 6 white    menu slots 2-4 returned
-///   LED 0 -> cyan  everything built and the loop is running
-///   LED 6 red      pulsing heartbeat
-void stage_led(int index, int r, int g, int b) {
-    setBoardLED(index, r, g, b, 60000, ledsimplevalue);
+///   LED 0 white    gray      LED 3 blue     blue
+///   LED 1 yellow   yellow    LED 4 red      red
+///   LED 2 green    green     LED 5 magenta  some other event
+void flash_event_led(int event) {
+    switch (event) {
+        case FWGUI_EVENT_GRAY_BUTTON:
+            setBoardLED(0, 255, 255, 255, 400, ledflash);
+            break;
+        case FWGUI_EVENT_YELLOW_BUTTON:
+            setBoardLED(1, 255, 255, 0, 400, ledflash);
+            break;
+        case FWGUI_EVENT_GREEN_BUTTON:
+            setBoardLED(2, 0, 255, 0, 400, ledflash);
+            break;
+        case FWGUI_EVENT_BLUE_BUTTON:
+            setBoardLED(3, 0, 0, 255, 400, ledflash);
+            break;
+        case FWGUI_EVENT_RED_BUTTON:
+            setBoardLED(4, 255, 0, 0, 400, ledflash);
+            break;
+        default:
+            setBoardLED(5, 255, 0, 255, 400, ledflash);
+            break;
+    }
 }
 
 /// Loads a receive configuration for `hz` and parks the radio in RX.
@@ -291,6 +306,7 @@ void pump_events() {
     uint8_t data[FW_GET_EVENT_DATA_MAX];
     while (hasEvent() != 0) {
         const int event = getEventData(data);
+        flash_event_led(event);
         switch (g_app.screen) {
             case Screen::kSelect:
                 handle_select_button(event);
@@ -356,10 +372,6 @@ void service_screen() {
 int main() {
     using namespace foxhunt;
 
-    // Proof of life before anything else, so a blank screen can still be told
-    // apart from a module that never ran.
-    stage_led(0, 255, 255, 255);
-
     // Static constructors are not guaranteed to run under -nostdlib with
     // --no-entry, so bring every piece of mutable state up explicitly.
     g_app.screen = Screen::kSelect;
@@ -387,13 +399,8 @@ int main() {
     // button, the workaround is to pick a different one, not to restore this
     // call.
 
-    // build_all() lights LEDs 1-4 as each panel completes.
     ui::build_all();
-
     enter_select();
-    // build_all() owns LEDs 1-6 for this diagnostic run, so the "running"
-    // marker reuses LED 0, switching it from white to cyan.
-    stage_led(0, 0, 255, 255);
 
     while (!g_app.should_exit) {
         pump_events();
@@ -411,8 +418,12 @@ int main() {
         g_app.now_ms += kSampleMs;
     }
 
+    // Leave the hardware quiet on the way out.
+    //
+    // exitToMainAppMenu() is deliberately not called. The step ladder only ever
+    // imported it, never invoked it, and calling it is what the app was doing
+    // when it crashed on exit. Returning from main() ends the script regardless.
     RadioSetIdle(kRadio);
     ui::clear_leds();
-    exitToMainAppMenu();
     return 0;
 }
