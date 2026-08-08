@@ -190,9 +190,8 @@ void run_band_scan() {
 
 void enter_select() {
     g_app.screen = Screen::kSelect;
-    // Deliberately not clearing the LEDs here: they carry the startup stage
-    // markers set in main(), which are the only diagnostic available if the
-    // screen stays blank.
+    // Not clearing the LEDs: they carry the per-button event flashes, which are
+    // currently the only evidence of whether presses reach the app.
     ui::show_select(g_app.fox_index);
 }
 
@@ -303,8 +302,18 @@ void handle_scan_button(int event) {
 }
 
 void pump_events() {
+    // Drain a bounded number of events per pass, never an open `while`.
+    //
+    // The unbounded version locked the board up hard. Nothing inside this loop
+    // yields, so if hasEvent() keeps reporting true - because events arrive as
+    // fast as they are drained, or because getEventData() does not consume the
+    // one it returns - the app spins forever, the display processor is starved,
+    // and the whole device stops responding. The cap means a busy queue costs a
+    // few extra passes instead of the machine.
+    constexpr int kMaxEventsPerPass = 8;
+
     uint8_t data[FW_GET_EVENT_DATA_MAX];
-    while (hasEvent() != 0) {
+    for (int drained = 0; drained < kMaxEventsPerPass && hasEvent() != 0; ++drained) {
         const int event = getEventData(data);
         flash_event_led(event);
         switch (g_app.screen) {
@@ -352,7 +361,6 @@ void service_screen() {
         service_audio(percent);
     }
 
-    ++g_app.frame;
     if ((g_app.frame % kFramesPerRepaint) != 0) {
         return;
     }
@@ -408,6 +416,12 @@ int main() {
             break;
         }
         service_screen();
+
+        // Advance here rather than inside service_screen(), which returns early
+        // on the screens that do not sample. Leaving it there pinned the
+        // counter at zero on the select screen, so the heartbeat below fired on
+        // every pass and flooded the LED queue twenty times a second.
+        ++g_app.frame;
 
         // Heartbeat, so a running app is distinguishable from a frozen one.
         if ((g_app.frame % 20) == 0) {
