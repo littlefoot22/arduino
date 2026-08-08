@@ -30,6 +30,9 @@ constexpr uint32_t kSampleMs = 50U;
 /// Repaint every fourth sample; the screen cannot usefully show more.
 constexpr int kFramesPerRepaint = 4;
 
+/// Re-arm the receiver every this many samples, about two seconds at 20 Hz.
+constexpr int kFramesPerRearm = 40;
+
 /// How long one full body rotation should take.
 constexpr uint32_t kSweepMs = 12000U;
 
@@ -177,17 +180,16 @@ TuneResult tune(uint32_t hz, int gain_step, int bw_index) {
         cc1101::build_rx_config(g_config, sizeof(g_config), hz, gain_step, bw_index);
     result.built = (len != 0U);
 
-    if (!kUseRadioConfig) {
-        // Nothing to load, so touch the radio as little as possible. Cycling
-        // IDLE/RX five times per sweep achieved nothing except giving the
-        // driver more chances to fall over, which is what a rescan did. The
-        // receiver is put into RX once at startup and left there.
-        g_last_tune = result;
-        return result;
-    }
-
+    // The IDLE -> RX cycle stays even when there is no config to load.
+    //
+    // Skipping it as pointless was a regression: the scan worked with this
+    // sequence in place and crashed the board without it. Dropping to IDLE
+    // resets the receiver between channels, and leaving the part sitting in RX
+    // indefinitely with nothing draining what it receives does not survive.
+    // The settle wait is also a yield, which the sweep depends on more than the
+    // radio does.
     RadioSetIdle(kRadio);
-    if (result.built) {
+    if (result.built && kUseRadioConfig) {
         result.cfg_rc = RadioLoadConfig(kRadio, g_config, static_cast<int>(len));
     }
     result.rx_rc = RadioSetRx(kRadio);
@@ -204,6 +206,24 @@ void retune_current() {
     g_app.tuned_ok = result.built;
     g_app.meter.reset();
     ui::set_hunt_tune_status(result.built, result.cfg_rc, result.rx_rc);
+}
+
+/// Parks the receiver.
+///
+/// Being in RX costs something even when nobody reads it: the part keeps
+/// receiving, and nothing in this app drains what it collects. Leaving it open
+/// across the minutes an app sits on a menu is what a rescan appeared to fall
+/// over on, so RX is entered only while readings are actually being taken.
+void radio_idle() { RadioSetIdle(kRadio); }
+
+/// Flushes the receiver by dropping to IDLE and reopening RX.
+///
+/// Called periodically on the screens that sample continuously, for the same
+/// reason: a receiver left open indefinitely accumulates, and the IDLE
+/// transition is what clears it.
+void radio_rearm() {
+    RadioSetIdle(kRadio);
+    RadioSetRx(kRadio);
 }
 
 int read_rssi_dbm() { return cc1101::normalize_rssi(RadioGetRSSI(kRadio)); }
@@ -262,8 +282,9 @@ void service_band_scan() {
         for (int i = 0; i < kFoxCount; ++i) {
             ui::update_scan_row(i, g_app.scan_results[i], g_app.scan_measured[i], best);
         }
-        // Leave the radio where the hunt expects it.
-        retune_current();
+        // Park the receiver. The sweep is done and nothing reads it again
+        // until a screen that samples is entered.
+        radio_idle();
         return;
     }
 
@@ -302,6 +323,7 @@ void service_band_scan() {
 
 void enter_select() {
     g_app.screen = Screen::kSelect;
+    radio_idle();
     // Not clearing the LEDs: they carry the per-button event flashes, which are
     // currently the only evidence of whether presses reach the app.
     ui::show_select(g_app.fox_index);
@@ -496,6 +518,12 @@ void service_screen() {
         return;
     }
 
+    // Flush the receiver every couple of seconds. Hunt and rose sample without
+    // pause, and an RX that is never dropped to IDLE accumulates.
+    if ((g_app.frame % kFramesPerRearm) == 0) {
+        radio_rearm();
+    }
+
     const int dbm = read_rssi_dbm();
     g_app.meter.push(dbm);
 
@@ -556,11 +584,6 @@ int main() {
     // call.
 
     ui::build_all();
-
-    // Put the receiver into RX once. With retuning disabled this is the only
-    // radio state change the app makes, and RSSI needs the receiver open.
-    RadioSetRx(kRadio);
-
     enter_select();
 
     while (!g_app.should_exit) {
