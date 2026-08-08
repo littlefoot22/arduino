@@ -232,12 +232,22 @@ tools/           Bring-up diagnostics, all still useful:
                    radiocfg   largest buffer RadioLoadConfig survives
                    probe      staged startup markers on the board LEDs
                    monitor.py dumps both serial ports from the host
+                   cleanup.py lists and deletes scripts on the board
                    verify_mvp build-time guard against post-MVP WASM features
 ```
 
 When something breaks on this board it usually fails silently, so the way back
 is always the same: start from `hello`, which is known to run, and add one thing
 at a time until it stops.
+
+Those probes accumulate on the device, and it has little room to spare. Clear
+them out when you are done - `fwi-serial` has no delete flag, but the API
+underneath it does:
+
+```bash
+python3 tools/cleanup.py --list      # what is on the board
+python3 tools/cleanup.py --probes    # remove the probes, keep the fox apps
+```
 
 Sampling runs at 20 Hz; the display repaints at 5 Hz.
 
