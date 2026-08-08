@@ -153,9 +153,6 @@ The main screen.
 - **WARMER / colder / steady** - a fast average compared against a slow one.
   This is what you actually walk by; absolute dBm means little without knowing
   the beacon's power or the terrain.
-- **Audio** - pitch rises and chirps get faster with signal, so you can hunt
-  with the screen at your side and watch where you are putting your feet. Set
-  `kAudioEnabled = false` in `src/main.cpp` for a silent hunt.
 - **Board LEDs** - coarse signal bar at 20% brightness (`kLedBrightnessPct`).
 - **ATT- / ATT+** - the attenuator. See below.
 

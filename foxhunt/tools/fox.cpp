@@ -7,8 +7,11 @@
 /// that, the structure is gone: no panel switching, no state machine, no fox
 /// selection. Pick your fox by choosing which file to run.
 ///
-///   gray   mute or unmute the chirps
 ///   red    exit
+///
+/// Silent. There is no audio and no sound import at all - a beacon that chirps
+/// at you continuously is not something you want strapped to your chest for an
+/// hour, and the screen and LEDs already say everything the pitch did.
 ///
 /// Tuning is attempted with a six-byte register write, and only once at
 /// startup. That size is the one measurement available: tools/step.cpp passed
@@ -47,7 +50,7 @@ constexpr int kCtlFreq = 1;
 constexpr int kCtlDbm = 2;
 constexpr int kCtlBar = 3;
 constexpr int kCtlTrend = 4;
-constexpr int kCtlAudio = 5;
+constexpr int kCtlHint = 5;
 
 const Fox& fox() { return kFoxes[FOX_INDEX]; }
 
@@ -132,8 +135,7 @@ int main() {
     addControlNumber(1, kCtlDbm, 1, 14, 70, 200, 3, 0, 255, 255, 255, 0, 0, 0, 0);
     addControlBargraph(1, kCtlBar, 1, 14, 130, 292, 34, 0, 100, 0, 230, 90);
     addControlText(1, kCtlTrend, 14, 176, 1, 34, 255, 255, 255, " ");
-    addControlText(1, kCtlAudio, 14, 220, 0, 14, 140, 150, 160, "gray: mute    red: exit");
-    setPanelMenuText(1, 0, "MUTE");
+    addControlText(1, kCtlHint, 14, 220, 0, 14, 140, 150, 160, "red: exit");
     setPanelMenuText(1, 4, "EXIT");
     showPanel(1);
 
@@ -153,7 +155,6 @@ int main() {
     int last_pct = -1;
     int last_lit = -1;
     int last_trend = -99;
-    bool muted = false;
     bool exit_now = false;
     int beat = 0;
 
@@ -162,13 +163,7 @@ int main() {
     while (!exit_now) {
         // Bounded drain. An open while() here locked the board once.
         for (int drained = 0; drained < 8 && hasEvent() != 0; ++drained) {
-            const int event = getEventData(event_data);
-            if (event == FWGUI_EVENT_GRAY_BUTTON) {
-                muted = !muted;
-                setControlValueText(1, kCtlAudio,
-                                    muted ? "MUTED         red: exit"
-                                          : "gray: mute    red: exit");
-            } else if (event == FWGUI_EVENT_RED_BUTTON) {
+            if (getEventData(event_data) == FWGUI_EVENT_RED_BUTTON) {
                 exit_now = true;
             }
         }
@@ -221,12 +216,6 @@ int main() {
                                                           : ((trend < 0) ? "<<< colder"
                                                                          : "--- steady"));
             last_trend = trend;
-        }
-
-        // Chirp twice a second, pitch following the level.
-        if (!muted && (beat % 2) == 0) {
-            playSoundFromFrequencyAndDuration(static_cast<float>(400 + (pct * 20)), 0.04F, 0.2F,
-                                              WAVETYPE_SINE);
         }
 
         if ((beat % kBeatEvery) == 0) {
