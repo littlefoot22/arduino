@@ -360,7 +360,9 @@ void set_hunt_status(const char* text) { set_text(kPanelHunt, kHuntStatus, text)
 
 void set_hunt_tune_status(bool built, int cfg_rc, int rx_rc) {
     g_buf.clear();
-    if (!built) {
+    if (cfg_rc < 0) {
+        g_buf.str("retune off - set freq on Radio panel");
+    } else if (!built) {
         g_buf.str("out of band");
     } else {
         g_buf.str("cfg ").num(cfg_rc).str("  rx ").num(rx_rc);
@@ -370,7 +372,11 @@ void set_hunt_tune_status(bool built, int cfg_rc, int rx_rc) {
 
 void set_scan_status(int channel, int cfg_rc, int rx_rc) {
     g_buf.clear();
-    g_buf.str("ch ").num(channel).str("  cfg ").num(cfg_rc).str("  rx ").num(rx_rc);
+    if (cfg_rc < 0) {
+        g_buf.str("ch ").num(channel).str("  retune off - all rows same freq");
+    } else {
+        g_buf.str("ch ").num(channel).str("  cfg ").num(cfg_rc).str("  rx ").num(rx_rc);
+    }
     set_text(kPanelScan, kScanStatus, g_buf.c_str());
 }
 

@@ -44,6 +44,23 @@ constexpr int kScanSamplesPerChannel = 6;
 /// Set false for a silent hunt.
 constexpr bool kAudioEnabled = true;
 
+/// Whether to send a register blob to the radio at all.
+///
+/// OFF, because doing so hard-resets this board. The app passed a 56-byte
+/// address/value list and the device dropped USB mid-scan; step10 passed six
+/// bytes to the same call and was fine, which points at a fixed-size buffer in
+/// firmware rather than at the contents. RadioLoadConfig() is documented @todo
+/// with no vendor example, so its expected size and layout are both guesses.
+///
+/// With this off the app reads RSSI on whatever frequency the radio is already
+/// tuned to - set it from the board's own Radio panel - so the meter, the
+/// rotation scan and the audio all work. What it cannot do is change channel,
+/// which is what the band scan needs.
+///
+/// tools/radiocfg.cpp finds the largest size the call survives. Turn this back
+/// on once that is known, and set kConfigMaxBytes to match.
+constexpr bool kUseRadioConfig = false;
+
 enum class Screen : uint8_t { kSelect, kHunt, kRose, kScan };
 
 /// Work a button asks for, carried out later by the main loop.
@@ -161,7 +178,7 @@ TuneResult tune(uint32_t hz, int gain_step, int bw_index) {
     result.built = (len != 0U);
 
     RadioSetIdle(kRadio);
-    if (result.built) {
+    if (result.built && kUseRadioConfig) {
         result.cfg_rc = RadioLoadConfig(kRadio, g_config, static_cast<int>(len));
     }
     result.rx_rc = RadioSetRx(kRadio);

@@ -178,11 +178,26 @@ foreach(lim RANGE 1 4)
     list(APPEND LIMIT_TARGETS limits${lim})
 endforeach()
 
+# RadioLoadConfig() size probes. One size per binary so a reset cannot destroy
+# the evidence of which size caused it. See tools/radiocfg.cpp.
+set(RADIOCFG_TARGETS "")
+foreach(bytes 2 6 12 24 47 56)
+    add_executable(radiocfg${bytes} tools/radiocfg.cpp src/wasm_rt.cpp)
+    target_link_libraries(radiocfg${bytes} PUBLIC fwwasm)
+    target_compile_definitions(radiocfg${bytes} PRIVATE CFG_BYTES=${bytes})
+    target_compile_options(radiocfg${bytes} PRIVATE ${WARNING_ARGS} ${WASM_COMPILER_ARGS})
+    target_link_options(radiocfg${bytes} PRIVATE ${WASM_LINKER_ARGS})
+    set_target_properties(radiocfg${bytes} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+    )
+    list(APPEND RADIOCFG_TARGETS radiocfg${bytes})
+endforeach()
+
 # Assert no post-MVP feature crept into any object. A module declaring one is
 # rejected by the device silently, so this has to be caught at build time.
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
-    foreach(target foxhunt hello probe ${IMPORT_TIER_TARGETS} ${STEP_TARGETS} ${LIMIT_TARGETS})
+    foreach(target foxhunt hello probe ${IMPORT_TIER_TARGETS} ${STEP_TARGETS} ${LIMIT_TARGETS} ${RADIOCFG_TARGETS})
         add_custom_command(TARGET ${target} POST_BUILD
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tools/verify_mvp.py
