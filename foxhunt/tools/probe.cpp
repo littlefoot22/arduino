@@ -56,13 +56,11 @@ int main() {
     stage(3, 255, 255, 0);
     beep(1320.0F);
 
-    // Stage 4: button handling. Called after the screen is already up, so a
-    // failure here cannot be confused with a drawing failure.
-    setCanDisplayReactToButtons(4);
-    stage(4, 255, 0, 255);
+    // No setCanDisplayReactToButtons() call: this firmware does not provide it,
+    // and importing it alone is enough to stop the module instantiating.
 
-    // Stage 5: into the loop.
-    stage(5, 0, 255, 255);
+    // Stage 4: into the loop.
+    stage(4, 0, 255, 255);
 
     // Stage 6: heartbeat. Pulsing forever means the app is healthy.
     uint8_t event_data[FW_GET_EVENT_DATA_MAX] = {0};

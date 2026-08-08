@@ -350,10 +350,18 @@ int main() {
     g_app.meter.reset();
     g_app.scan.clear();
 
-    // 4 is the value the vendor radio example uses, and it is the only setting
-    // known to work with a visible panel. 0 looked like it should hand the app
-    // every button, but that was a guess and is not worth risking here.
-    setCanDisplayReactToButtons(4);
+    // Deliberately NOT calling setCanDisplayReactToButtons() here.
+    //
+    // Measured on hardware with tools/step.cpp: step 1 runs, and step 2, whose
+    // only addition is that call, does not. This firmware predates it. The
+    // vendor radio example calls it, so that example cannot run here either -
+    // fwwasm.h describes a newer API than this board implements.
+    //
+    // The cost is that the firmware may also act on button presses rather than
+    // leaving them entirely to us. Events still arrive through hasEvent() and
+    // getEventData() either way, so the app works; if the firmware steals a
+    // button, the workaround is to pick a different one, not to restore this
+    // call.
 
     ui::build_all();
     enter_select();

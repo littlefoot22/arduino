@@ -113,7 +113,7 @@ set_target_properties(probe PROPERTIES
 # Cumulative ladder from the known-good hello baseline up to the full set of
 # host calls the app needs, one addition per step. See tools/step.cpp.
 set(STEP_TARGETS "")
-foreach(step RANGE 1 11)
+foreach(step RANGE 1 10)
     if(step LESS 10)
         set(name step0${step})
     else()
