@@ -110,11 +110,27 @@ set_target_properties(probe PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
+# Import bisector, one binary per group of host functions under test. An
+# unresolvable import breaks instantiation, so these find which group the
+# firmware does not provide. See tools/imports.cpp.
+set(IMPORT_TIER_TARGETS "")
+foreach(tier RANGE 1 5)
+    add_executable(imports${tier} tools/imports.cpp)
+    target_link_libraries(imports${tier} PUBLIC fwwasm)
+    target_compile_definitions(imports${tier} PRIVATE TIER=${tier})
+    target_compile_options(imports${tier} PRIVATE ${WARNING_ARGS} ${WASM_COMPILER_ARGS})
+    target_link_options(imports${tier} PRIVATE ${WASM_LINKER_ARGS})
+    set_target_properties(imports${tier} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+    )
+    list(APPEND IMPORT_TIER_TARGETS imports${tier})
+endforeach()
+
 # Assert no post-MVP feature crept into any object. A module declaring one is
 # rejected by the device silently, so this has to be caught at build time.
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
-    foreach(target foxhunt hello probe)
+    foreach(target foxhunt hello probe ${IMPORT_TIER_TARGETS})
         add_custom_command(TARGET ${target} POST_BUILD
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tools/verify_mvp.py
