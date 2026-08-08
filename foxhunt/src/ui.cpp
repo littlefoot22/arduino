@@ -96,9 +96,26 @@ constexpr Rgb kAmber{255, 176, 0};
 constexpr Rgb kGreen{0, 230, 90};
 constexpr Rgb kBg{8, 12, 18};
 
-// Fonts: type 0 is monospace, type 1 proportional; size is a 0-3 index.
+// Font type: 0 is monospace, 1 proportional.
 constexpr int kMono = 0;
 constexpr int kProp = 1;
+
+// The two "font size" arguments in this API are not the same unit, which is
+// easy to get wrong because the parameter has the same name in both:
+//
+//   addControlText()   - size in PIXELS       (vendor radio example passes 64)
+//   addControlNumber() - size as a 0-3 INDEX  (vendor ball example passes 3)
+//
+// Passing an index to addControlText() renders text a couple of pixels tall,
+// which on a dark background looks exactly like a screen that failed to draw.
+constexpr int kTextHuge = 44;
+constexpr int kTextTitle = 26;
+constexpr int kTextRow = 20;
+constexpr int kTextLabel = 16;
+constexpr int kTextSmall = 13;
+
+/// Font size index for addControlNumber(), which does take an index.
+constexpr int kNumberFont = 3;
 
 // -------------------------------------------------------- control indices ---
 
@@ -150,7 +167,7 @@ void set_text(int panel, int control, const char* text) { setControlValueText(pa
 /// which uses only the plainly specified setControlValueText().
 const char* rose_glyph(int level_db, int weakest, int strongest, bool filled, bool is_peak) {
     if (!filled) {
-        return "\xB7";  // middle dot: nothing sampled here
+        return ".";  // nothing sampled here
     }
     if (is_peak) {
         return "@";
@@ -176,13 +193,13 @@ const char* rose_glyph(int level_db, int weakest, int strongest, bool filled, bo
 void build_all() {
     // ---- fox select ----
     addPanel(kPanelSelect, 1, 0, 0, 0, kBg.r, kBg.g, kBg.b, 1);
-    addControlText(kPanelSelect, kSelTitle, 8, 4, kProp, 2, kAmber.r, kAmber.g, kAmber.b,
+    addControlText(kPanelSelect, kSelTitle, 8, 4, kProp, kTextTitle, kAmber.r, kAmber.g, kAmber.b,
                    "FOXHUNT  70cm");
     for (int i = 0; i < kFoxCount; ++i) {
-        addControlText(kPanelSelect, kSelFirstRow + i, 14, 44 + (i * 28), kMono, 2, kWhite.r,
+        addControlText(kPanelSelect, kSelFirstRow + i, 14, 44 + (i * 28), kMono, kTextRow, kWhite.r,
                        kWhite.g, kWhite.b, " ");
     }
-    addControlText(kPanelSelect, kSelNote, 8, 196, kProp, 0, kDim.r, kDim.g, kDim.b,
+    addControlText(kPanelSelect, kSelNote, 8, 200, kProp, kTextSmall, kDim.r, kDim.g, kDim.b,
                    "Fox 1-5 are 2m - outside CC1101 range");
     setPanelMenuText(kPanelSelect, 0, "UP");
     setPanelMenuText(kPanelSelect, 1, "DOWN");
@@ -192,16 +209,18 @@ void build_all() {
 
     // ---- hunt meter ----
     addPanel(kPanelHunt, 1, 0, 0, 0, kBg.r, kBg.g, kBg.b, 1);
-    addControlText(kPanelHunt, kHuntFox, 8, 4, kProp, 2, kAmber.r, kAmber.g, kAmber.b, "FOX");
-    addControlText(kPanelHunt, kHuntFreq, 150, 8, kMono, 1, kDim.r, kDim.g, kDim.b, "");
-    addControlNumber(kPanelHunt, kHuntDbm, 1, 14, 36, 200, 3, kMono, kWhite.r, kWhite.g, kWhite.b, 0,
-                     0, 0, 0);
+    addControlText(kPanelHunt, kHuntFox, 8, 4, kProp, kTextTitle, kAmber.r, kAmber.g, kAmber.b,
+                   "FOX");
+    addControlText(kPanelHunt, kHuntFreq, 150, 10, kMono, kTextLabel, kDim.r, kDim.g, kDim.b, "");
+    addControlNumber(kPanelHunt, kHuntDbm, 1, 14, 36, 200, kNumberFont, kMono, kWhite.r, kWhite.g,
+                     kWhite.b, 0, 0, 0, 0);
     addControlBargraph(kPanelHunt, kHuntBar, 1, 14, 96, 292, 34, 0, 100, kGreen.r, kGreen.g,
                        kGreen.b);
-    addControlText(kPanelHunt, kHuntPeak, 14, 138, kMono, 1, kDim.r, kDim.g, kDim.b, "");
-    addControlText(kPanelHunt, kHuntTrend, 14, 162, kProp, 2, kWhite.r, kWhite.g, kWhite.b, "");
-    addControlText(kPanelHunt, kHuntGain, 14, 198, kMono, 0, kDim.r, kDim.g, kDim.b, "");
-    addControlText(kPanelHunt, kHuntStatus, 14, 216, kProp, 0, kDim.r, kDim.g, kDim.b, "");
+    addControlText(kPanelHunt, kHuntPeak, 14, 138, kMono, kTextLabel, kDim.r, kDim.g, kDim.b, "");
+    addControlText(kPanelHunt, kHuntTrend, 14, 160, kProp, kTextHuge, kWhite.r, kWhite.g, kWhite.b,
+                   "");
+    addControlText(kPanelHunt, kHuntGain, 14, 206, kMono, kTextSmall, kDim.r, kDim.g, kDim.b, "");
+    addControlText(kPanelHunt, kHuntStatus, 14, 222, kProp, kTextSmall, kDim.r, kDim.g, kDim.b, "");
     setPanelMenuText(kPanelHunt, 0, "ATT-");
     setPanelMenuText(kPanelHunt, 1, "ATT+");
     setPanelMenuText(kPanelHunt, 2, "ROSE");
@@ -210,18 +229,18 @@ void build_all() {
 
     // ---- rotation rose ----
     addPanel(kPanelRose, 1, 0, 0, 0, kBg.r, kBg.g, kBg.b, 1);
-    addControlText(kPanelRose, kRoseTitle, 8, 4, kProp, 1, kAmber.r, kAmber.g, kAmber.b,
+    addControlText(kPanelRose, kRoseTitle, 8, 4, kProp, kTextLabel, kAmber.r, kAmber.g, kAmber.b,
                    "ROTATION SCAN");
     for (int i = 0; i < df::kRoseSectors; ++i) {
         const int x = kRoseCx + ((df::kRoseOffsets[i].dx * kRoseRadius) / 1000);
         const int y = kRoseCy + ((df::kRoseOffsets[i].dy * kRoseRadius) / 1000);
-        addControlText(kPanelRose, kRoseFirstDot + i, x, y, kMono, 2, kDim.r, kDim.g, kDim.b,
-                       "\xB7");
+        addControlText(kPanelRose, kRoseFirstDot + i, x, y, kMono, kTextRow, kDim.r, kDim.g, kDim.b,
+                       "*");
     }
-    addControlText(kPanelRose, kRoseBearing, kRoseCx - 34, kRoseCy - 12, kProp, 2, kWhite.r,
-                   kWhite.g, kWhite.b, "--");
-    addControlText(kPanelRose, kRoseDetail, 8, 200, kMono, 0, kDim.r, kDim.g, kDim.b, "");
-    addControlText(kPanelRose, kRoseHint, 8, 218, kProp, 0, kDim.r, kDim.g, kDim.b,
+    addControlText(kPanelRose, kRoseBearing, kRoseCx - 34, kRoseCy - 14, kProp, kTextTitle,
+                   kWhite.r, kWhite.g, kWhite.b, "--");
+    addControlText(kPanelRose, kRoseDetail, 8, 200, kMono, kTextSmall, kDim.r, kDim.g, kDim.b, "");
+    addControlText(kPanelRose, kRoseHint, 8, 218, kProp, kTextSmall, kDim.r, kDim.g, kDim.b,
                    "Hold to chest, turn a full circle");
     setPanelMenuText(kPanelRose, 0, "");
     setPanelMenuText(kPanelRose, 1, "");
@@ -231,16 +250,16 @@ void build_all() {
 
     // ---- band scan ----
     addPanel(kPanelScan, 1, 0, 0, 0, kBg.r, kBg.g, kBg.b, 1);
-    addControlText(kPanelScan, kScanTitle, 8, 4, kProp, 2, kAmber.r, kAmber.g, kAmber.b,
+    addControlText(kPanelScan, kScanTitle, 8, 4, kProp, kTextTitle, kAmber.r, kAmber.g, kAmber.b,
                    "BAND SCAN");
     for (int i = 0; i < kFoxCount; ++i) {
         const int y = 44 + (i * 34);
-        addControlText(kPanelScan, kScanFirstLabel + i, 8, y, kMono, 1, kWhite.r, kWhite.g,
+        addControlText(kPanelScan, kScanFirstLabel + i, 8, y, kMono, kTextRow, kWhite.r, kWhite.g,
                        kWhite.b, kFoxes[i].name);
-        addControlBargraph(kPanelScan, kScanFirstBar + i, 1, 84, y, 168, 20, 0, 100, kGreen.r,
+        addControlBargraph(kPanelScan, kScanFirstBar + i, 1, 92, y, 156, 20, 0, 100, kGreen.r,
                            kGreen.g, kGreen.b);
-        addControlText(kPanelScan, kScanFirstValue + i, 260, y, kMono, 1, kDim.r, kDim.g, kDim.b,
-                       "--");
+        addControlText(kPanelScan, kScanFirstValue + i, 256, y, kMono, kTextRow, kDim.r, kDim.g,
+                       kDim.b, "--");
     }
     setPanelMenuText(kPanelScan, 0, "");
     setPanelMenuText(kPanelScan, 1, "");
@@ -349,7 +368,7 @@ void update_rose(const df::RotationScan& scan, uint32_t now_ms) {
         return;
     }
 
-    g_buf.num(scan.bearing_deg()).ch('\xF8');
+    g_buf.num(scan.bearing_deg()).str(" deg");
     set_text(kPanelRose, kRoseBearing, g_buf.c_str());
 
     // A rose with little variation means the bearing is not trustworthy: the
