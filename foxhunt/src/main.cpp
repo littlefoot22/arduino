@@ -46,6 +46,15 @@ constexpr bool kAudioEnabled = true;
 
 enum class Screen : uint8_t { kSelect, kHunt, kRose, kScan };
 
+/// Work a button asks for, carried out later by the main loop.
+///
+/// Button handlers must not do the work themselves. Doing so put the radio
+/// calls six frames deep - main, pump_events, the handler, enter_scan,
+/// run_band_scan, tune - and the interpreter trapped with a stack overflow.
+/// Every sequence that ran cleanly during bring-up called the radio from close
+/// to main(), so depth, not the calls themselves, is what this device minds.
+enum class Request : uint8_t { kNone, kSelect, kHunt, kRose, kScan, kRescan };
+
 struct App {
     Screen screen = Screen::kSelect;
     int fox_index = 0;
@@ -64,6 +73,18 @@ struct App {
     int frame = 0;
     uint32_t next_chirp_ms = 0U;
     bool should_exit = false;
+
+    Request pending = Request::kNone;
+
+    /// Band scan progress. The sweep runs one reading per main-loop pass rather
+    /// than in a nested loop, which keeps the radio calls shallow and leaves
+    /// the app responsive instead of frozen for the second and a half it takes.
+    bool scan_running = false;
+    int scan_index = 0;
+    int scan_sample = 0;
+    int scan_peak = -200;
+    int scan_results[kFoxCount] = {};
+    bool scan_measured[kFoxCount] = {};
 };
 
 App g_app;
@@ -101,16 +122,23 @@ void flash_event_led(int event) {
     }
 }
 
+/// Scratch space for the register blob.
+///
+/// At file scope rather than on the stack. It is the largest frame in the app,
+/// and this device traps on stack depth readily enough that keeping the deepest
+/// call slim is worth one global.
+uint8_t g_config[cc1101::kConfigBytes];
+
 /// Loads a receive configuration for `hz` and parks the radio in RX.
 bool tune(uint32_t hz, int gain_step, int bw_index) {
-    uint8_t config[cc1101::kConfigBytes];
-    const size_t len = cc1101::build_rx_config(config, sizeof(config), hz, gain_step, bw_index);
+    const size_t len =
+        cc1101::build_rx_config(g_config, sizeof(g_config), hz, gain_step, bw_index);
     if (len == 0U) {
         return false;
     }
 
     RadioSetIdle(kRadio);
-    if (RadioLoadConfig(kRadio, config, static_cast<int>(len)) == 0) {
+    if (RadioLoadConfig(kRadio, g_config, static_cast<int>(len)) == 0) {
         return false;
     }
     if (RadioSetRx(kRadio) == 0) {
@@ -141,51 +169,79 @@ void service_audio(int percent) {
         g_app.now_ms + static_cast<uint32_t>(df::chirp_interval_ms_for(percent));
 }
 
-/// Sweeps all 70 cm fox channels and reports which is loudest.
+/// Starts a sweep of all 70 cm fox channels.
 ///
 /// Worth running whenever you lose the trail: it answers "am I even chasing the
 /// right fox?" before you spend twenty minutes walking the wrong bearing.
-void run_band_scan() {
-    int best_index = 0;
-    int best_dbm = -200;
-    int results[kFoxCount];
-    bool measured[kFoxCount];
-
+void begin_band_scan() {
     for (int i = 0; i < kFoxCount; ++i) {
-        results[i] = -200;
-        measured[i] = false;
+        g_app.scan_results[i] = -200;
+        g_app.scan_measured[i] = false;
+        ui::update_scan_row(i, 0, false, -1);
+    }
+    g_app.scan_index = 0;
+    g_app.scan_sample = 0;
+    g_app.scan_peak = -200;
+    g_app.scan_running = true;
+}
 
-        if (!tune(kFoxes[i].freq_hz, g_app.gain_step, g_app.bw_index)) {
-            ui::update_scan_row(i, 0, false, -1);
-            continue;
+/// Index of the strongest channel measured so far, or -1 if none.
+int best_scanned() {
+    int best = -1;
+    for (int i = 0; i < kFoxCount; ++i) {
+        if (g_app.scan_measured[i] && (best < 0 || g_app.scan_results[i] > g_app.scan_results[best])) {
+            best = i;
         }
+    }
+    return best;
+}
 
-        // Peak-hold rather than mean: a beacon keying on and off would
-        // otherwise average down to nothing.
-        int peak = -200;
-        for (int s = 0; s < kScanSamplesPerChannel; ++s) {
-            const int dbm = read_rssi_dbm();
-            if (dbm > peak) {
-                peak = dbm;
-            }
-            waitms(static_cast<int>(kSampleMs));
-        }
-
-        results[i] = peak;
-        measured[i] = true;
-        if (peak > best_dbm) {
-            best_dbm = peak;
-            best_index = i;
-        }
-        ui::update_scan_row(i, peak, true, -1);
+/// Advances the sweep by one reading. Called once per main-loop pass.
+///
+/// One channel used to be measured in a nested loop that blocked for a second
+/// and a half; spreading it over passes keeps the radio calls two frames from
+/// main() and leaves buttons responsive while it runs.
+void service_band_scan() {
+    if (!g_app.scan_running) {
+        return;
     }
 
-    for (int i = 0; i < kFoxCount; ++i) {
-        ui::update_scan_row(i, results[i], measured[i], best_index);
+    if (g_app.scan_index >= kFoxCount) {
+        g_app.scan_running = false;
+        const int best = best_scanned();
+        for (int i = 0; i < kFoxCount; ++i) {
+            ui::update_scan_row(i, g_app.scan_results[i], g_app.scan_measured[i], best);
+        }
+        // Leave the radio where the hunt expects it.
+        retune_current();
+        return;
     }
 
-    // Leave the radio where the hunt expects it.
-    retune_current();
+    // First pass on a channel: tune to it.
+    if (g_app.scan_sample == 0) {
+        g_app.scan_peak = -200;
+        if (!tune(kFoxes[g_app.scan_index].freq_hz, g_app.gain_step, g_app.bw_index)) {
+            ui::update_scan_row(g_app.scan_index, 0, false, -1);
+            ++g_app.scan_index;
+            return;
+        }
+    }
+
+    // Peak-hold rather than mean: a beacon keying on and off would otherwise
+    // average down to nothing.
+    const int dbm = read_rssi_dbm();
+    if (dbm > g_app.scan_peak) {
+        g_app.scan_peak = dbm;
+    }
+    ++g_app.scan_sample;
+
+    if (g_app.scan_sample >= kScanSamplesPerChannel) {
+        g_app.scan_results[g_app.scan_index] = g_app.scan_peak;
+        g_app.scan_measured[g_app.scan_index] = true;
+        ui::update_scan_row(g_app.scan_index, g_app.scan_peak, true, best_scanned());
+        ++g_app.scan_index;
+        g_app.scan_sample = 0;
+    }
 }
 
 void enter_select() {
@@ -210,9 +266,8 @@ void enter_rose() {
 
 void enter_scan() {
     g_app.screen = Screen::kScan;
-    ui::clear_leds();
     ui::show_scan();
-    run_band_scan();
+    begin_band_scan();
 }
 
 void handle_select_button(int event) {
@@ -226,10 +281,10 @@ void handle_select_button(int event) {
             ui::update_select(g_app.fox_index);
             break;
         case FWGUI_EVENT_GREEN_BUTTON:
-            enter_hunt();
+            g_app.pending = Request::kHunt;
             break;
         case FWGUI_EVENT_BLUE_BUTTON:
-            enter_scan();
+            g_app.pending = Request::kScan;
             break;
         case FWGUI_EVENT_RED_BUTTON:
             g_app.should_exit = true;
@@ -244,20 +299,20 @@ void handle_hunt_button(int event) {
         case FWGUI_EVENT_GRAY_BUTTON:
             if (g_app.gain_step > 0) {
                 --g_app.gain_step;
-                retune_current();
+                g_app.pending = Request::kHunt;
             }
             break;
         case FWGUI_EVENT_YELLOW_BUTTON:
             if (g_app.gain_step < (cc1101::kGainSteps - 1)) {
                 ++g_app.gain_step;
-                retune_current();
+                g_app.pending = Request::kHunt;
             }
             break;
         case FWGUI_EVENT_GREEN_BUTTON:
-            enter_rose();
+            g_app.pending = Request::kRose;
             break;
         case FWGUI_EVENT_BLUE_BUTTON:
-            enter_select();
+            g_app.pending = Request::kSelect;
             break;
         case FWGUI_EVENT_RED_BUTTON:
             g_app.should_exit = true;
@@ -288,14 +343,41 @@ void handle_rose_button(int event) {
 void handle_scan_button(int event) {
     switch (event) {
         case FWGUI_EVENT_GREEN_BUTTON:
-            run_band_scan();
+            g_app.pending = Request::kRescan;
             break;
         case FWGUI_EVENT_BLUE_BUTTON:
-            enter_select();
+            g_app.pending = Request::kSelect;
             break;
         case FWGUI_EVENT_RED_BUTTON:
             g_app.should_exit = true;
             break;
+        default:
+            break;
+    }
+}
+
+/// Carries out the work a button asked for, at main-loop depth.
+void service_request() {
+    const Request request = g_app.pending;
+    g_app.pending = Request::kNone;
+
+    switch (request) {
+        case Request::kSelect:
+            enter_select();
+            break;
+        case Request::kHunt:
+            enter_hunt();
+            break;
+        case Request::kRose:
+            enter_rose();
+            break;
+        case Request::kScan:
+            enter_scan();
+            break;
+        case Request::kRescan:
+            begin_band_scan();
+            break;
+        case Request::kNone:
         default:
             break;
     }
@@ -415,6 +497,8 @@ int main() {
         if (g_app.should_exit) {
             break;
         }
+        service_request();
+        service_band_scan();
         service_screen();
 
         // Advance here rather than inside service_screen(), which returns early
