@@ -13,6 +13,7 @@ cd "$(dirname "$0")"
 mkdir -p dist
 cp build/foxhunt.wasm dist/foxhunt.wasm
 cp build/probe.wasm dist/probe.wasm
+cp build/hello.wasm dist/hello.wasm
 
 echo
 echo "dist/foxhunt.wasm refreshed"

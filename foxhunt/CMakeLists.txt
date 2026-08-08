@@ -86,6 +86,17 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 
 # Startup probe, built alongside. Reports progress on the board LEDs so a
 # device that draws nothing can still say how far it got. See tools/probe.cpp.
+# Minimal display sanity check, built with an even stricter feature set: plain
+# MVP with no bulk-memory, the most conservative module this toolchain emits.
+add_executable(hello tools/hello.cpp)
+target_link_libraries(hello PUBLIC fwwasm)
+target_compile_options(hello PRIVATE ${WARNING_ARGS}
+    --target=wasm32-wasip1 -mcpu=mvp -nostdlib -O3)
+target_link_options(hello PRIVATE ${WASM_LINKER_ARGS})
+set_target_properties(hello PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
 add_executable(probe tools/probe.cpp)
 target_link_libraries(probe PUBLIC fwwasm)
 target_compile_options(probe PRIVATE ${WARNING_ARGS} ${WASM_COMPILER_ARGS})
