@@ -23,7 +23,7 @@
 #include <cstdint>
 
 #ifndef TIER
-#error "TIER must be defined (1-5)"
+#error "TIER must be defined (1-5, or 11-13 to split tier 1)"
 #endif
 
 namespace {
@@ -35,6 +35,13 @@ volatile int g_never = 0;
 #if TIER == 1
 constexpr const char* kLabel = "TIER 1 diag";
 char g_term[] = "x";
+#elif TIER == 11
+constexpr const char* kLabel = "1a printInt";
+#elif TIER == 12
+constexpr const char* kLabel = "1b terminalWrite";
+char g_term[] = "x";
+#elif TIER == 13
+constexpr const char* kLabel = "1c showDialogMsgBox";
 #elif TIER == 2
 constexpr const char* kLabel = "TIER 2 appctl";
 #elif TIER == 3
@@ -55,6 +62,12 @@ void touch_imports() {
     // Diagnostics and dialogs.
     printInt("x", printColorNormal, printInt32, 0);
     terminalWrite(g_term);
+    showDialogMsgBox("x", 1, 0, 0, 0, 0);
+#elif TIER == 11
+    printInt("x", printColorNormal, printInt32, 0);
+#elif TIER == 12
+    terminalWrite(g_term);
+#elif TIER == 13
     showDialogMsgBox("x", 1, 0, 0, 0, 0);
 #elif TIER == 2
     // Application and panel control.

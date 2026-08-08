@@ -1,24 +1,24 @@
-/// Diagnostic probe for a FreeWili that shows a blank screen.
+/// Staged startup probe: reports how far an app got using only the board LEDs.
 ///
-/// Lights one board LED per startup stage before attempting that stage, so the
-/// LEDs report how far the app got even when nothing draws. LEDs and sound do
-/// not depend on the display pipeline at all, which is exactly what we need
-/// when the display is the thing under suspicion.
+/// LEDs and sound are driven independently of the display, which is what makes
+/// them useful when the display is the thing under suspicion.
 ///
 ///   LED 0 white    main() entered - the module loaded and is executing
-///   LED 1 blue     setCanDisplayReactToButtons() returned
-///   LED 2 green    addPanel() returned
-///   LED 3 yellow   addControlText() returned
-///   LED 4 magenta  showPanel() returned
+///   LED 1 blue     addPanel() returned
+///   LED 2 green    addControlText() returned
+///   LED 3 yellow   showPanel() returned
+///   LED 4 magenta  setCanDisplayReactToButtons() returned
 ///   LED 5 cyan     reached the event loop
 ///   LED 6 red      pulsing heartbeat, one per second
 ///
-/// Read it as: the last lit LED is the last call that completed. All seven lit
-/// plus a blank screen means the app runs fine and the problem is confined to
-/// how panels are displayed.
+/// The last lit LED is the last call that completed. All seven lit alongside a
+/// blank screen means the app is healthy and the fault is in display output.
 ///
-/// Everything here mirrors the vendor radio example's call pattern as closely
-/// as possible, including passing 4 to setCanDisplayReactToButtons().
+/// Deliberately imports nothing beyond what hello.cpp proved works, plus the
+/// calls actually being tested. An earlier version used printInt(),
+/// terminalWrite() and showDialogMsgBox(); this firmware does not provide at
+/// least one of those, and an unresolved import stops the module from
+/// instantiating at all - so that version never ran a single line.
 
 #include <fwwasm.h>
 
@@ -35,71 +35,46 @@ void stage(int led, int r, int g, int b) {
 
 void beep(float hz) { playSoundFromFrequencyAndDuration(hz, 0.12F, 0.2F, WAVETYPE_SINE); }
 
-// terminalWrite() takes a mutable char*, so these cannot be string literals.
-char kMsgEntered[] = "PROBE: main() entered\n";
-char kMsgAlive[] = "PROBE: alive\n";
-
 }  // namespace
 
 int main() {
-    // Stage 0: we are alive. Nothing before this line can have failed.
+    // Stage 0: alive. Nothing before this line can have failed.
     stage(0, 255, 255, 255);
     beep(880.0F);
 
-    printInt("\nPROBE: main() entered\n", printColorGreen, printInt32, 0);
-    terminalWrite(kMsgEntered);
-
-    // Stage 1: button handling. The vendor example passes 4 here; the main app
-    // passes 0, and this is one of the differences worth ruling out.
-    setCanDisplayReactToButtons(4);
-    stage(1, 0, 0, 255);
-    printInt("PROBE: buttons configured\n", printColorGreen, printInt32, 0);
-
-    // Stage 2: create a panel. Black background, menu bar on, exactly as the
-    // vendor example does it.
+    // Stage 1: create a panel.
     addPanel(1, 1, 0, 0, 0, 0, 0, 0, 1);
+    stage(1, 0, 0, 255);
+
+    // Stage 2: text, at the pixel size the vendor radio example uses.
+    addControlText(1, 1, 20, 80, 1, 48, 255, 255, 255, "PROBE");
+    addControlText(1, 2, 20, 140, 1, 24, 255, 255, 0, "if you can read this");
     stage(2, 0, 255, 0);
-    printInt("PROBE: addPanel done\n", printColorGreen, printInt32, 0);
 
-    // Stage 3: one big white string. 64 is the pixel size the vendor radio
-    // example uses, so if text is going to show at all it should show here.
-    addControlText(1, 1, 20, 90, 1, 64, 255, 255, 255, "PROBE");
-    addControlText(1, 2, 20, 150, 1, 24, 255, 255, 0, "if you can read this");
-    stage(3, 255, 255, 0);
-    printInt("PROBE: addControlText done\n", printColorGreen, printInt32, 0);
-
-    // Stage 4: make it visible.
+    // Stage 3: make it visible.
     showPanel(1);
-    stage(4, 255, 0, 255);
+    stage(3, 255, 255, 0);
     beep(1320.0F);
-    printInt("PROBE: showPanel done\n", printColorGreen, printInt32, 0);
 
-    // A modal dialog renders through a different path than panel controls, so
-    // if panels are broken but this appears, that narrows it a long way.
-    showDialogMsgBox("PROBE DIALOG", 1, 0, 0, 0, 0);
+    // Stage 4: button handling. Called after the screen is already up, so a
+    // failure here cannot be confused with a drawing failure.
+    setCanDisplayReactToButtons(4);
+    stage(4, 255, 0, 255);
 
     // Stage 5: into the loop.
     stage(5, 0, 255, 255);
-    printInt("PROBE: entering loop\n", printColorGreen, printInt32, 0);
 
-    // Stage 6: heartbeat. If this pulses forever, the app is healthy and the
-    // display is the only thing at fault.
-    uint32_t beat = 0;
+    // Stage 6: heartbeat. Pulsing forever means the app is healthy.
     uint8_t event_data[FW_GET_EVENT_DATA_MAX] = {0};
     while (true) {
         setBoardLED(6, 255, 0, 0, 500, ledpulsefade);
-        printInt("PROBE: beat %d\n", printColorBlue, printUInt32, static_cast<int>(beat));
-        terminalWrite(kMsgAlive);
 
-        // Report any button presses, which confirms input works even if the
-        // screen never draws.
+        // A beep per button press confirms input works even if nothing draws.
         while (hasEvent() != 0) {
-            const int event = getEventData(event_data);
-            printInt("PROBE: event %d\n", printColorRed, printInt32, event);
+            static_cast<void>(getEventData(event_data));
             beep(660.0F);
         }
 
-        ++beat;
         waitms(1000);
     }
 

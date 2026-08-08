@@ -114,7 +114,7 @@ set_target_properties(probe PROPERTIES
 # unresolvable import breaks instantiation, so these find which group the
 # firmware does not provide. See tools/imports.cpp.
 set(IMPORT_TIER_TARGETS "")
-foreach(tier RANGE 1 5)
+foreach(tier 1 2 3 4 5 11 12 13)
     add_executable(imports${tier} tools/imports.cpp)
     target_link_libraries(imports${tier} PUBLIC fwwasm)
     target_compile_definitions(imports${tier} PRIVATE TIER=${tier})
