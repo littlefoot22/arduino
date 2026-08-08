@@ -33,21 +33,26 @@ set(WARNING_ARGS
 # wasm32-unknown-wasi; the old name is a hard error from wasi-sdk 33 on. If you
 # are on an SDK older than 25, swap it back.
 #
-# -mcpu=mvp pins the WebAssembly feature set to the original MVP, then
-# -mbulk-memory adds back the one extension the vendor examples opt into.
-#
-# This matters more than it looks. Recent clang enables reference-types,
+# -mcpu=mvp pins the WebAssembly feature set to the original MVP and nothing
+# more. This matters more than it looks: recent clang enables reference-types,
 # multivalue, sign-ext, nontrapping-fptoint and extended-const by default, and
-# the FreeWili's embedded interpreter rejects a module that declares them - it
-# fails validation and simply never runs, with no error anywhere. A device that
-# does nothing at all, not even light an LED, is the symptom.
+# this device's interpreter rejects a module declaring any of them. It fails
+# validation and never runs, with no error reported anywhere - a board that does
+# nothing at all, not even light an LED, is the symptom.
+#
+# Note there is deliberately no -mbulk-memory here even though the vendor
+# examples pass it. Measured on hardware: a bulk-memory module is rejected the
+# same silent way, while an otherwise identical pure-MVP module runs. Whatever
+# their SDK emitted, this firmware will not take it.
 #
 # -nostdlib is part of the same fix rather than an optimisation: wasi-sdk ships
 # a precompiled sysroot built with those same post-MVP features, and the linker
 # unions their feature flags into the output even when almost no libc is used.
 # This app calls none of it (all formatting is hand-rolled in ui.cpp), so
 # dropping the sysroot is what actually gets the feature list clean.
-set(WASM_COMPILER_ARGS --target=wasm32-wasip1 -mcpu=mvp -mbulk-memory -nostdlib -O3 -flto)
+#
+# The build asserts all of this - see the verify_mvp target below.
+set(WASM_COMPILER_ARGS --target=wasm32-wasip1 -mcpu=mvp -nostdlib -O3 -flto)
 
 # The FreeWili gives a WASM app exactly one 64 KB page for stack plus heap, so
 # these limits are hardware facts rather than preferences.
@@ -86,12 +91,11 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 
 # Startup probe, built alongside. Reports progress on the board LEDs so a
 # device that draws nothing can still say how far it got. See tools/probe.cpp.
-# Minimal display sanity check, built with an even stricter feature set: plain
-# MVP with no bulk-memory, the most conservative module this toolchain emits.
+# Minimal display sanity check: one panel, one string. Known to run on
+# hardware, so it doubles as the reference every other target is matched to.
 add_executable(hello tools/hello.cpp)
 target_link_libraries(hello PUBLIC fwwasm)
-target_compile_options(hello PRIVATE ${WARNING_ARGS}
-    --target=wasm32-wasip1 -mcpu=mvp -nostdlib -O3)
+target_compile_options(hello PRIVATE ${WARNING_ARGS} ${WASM_COMPILER_ARGS})
 target_link_options(hello PRIVATE ${WASM_LINKER_ARGS})
 set_target_properties(hello PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
@@ -104,3 +108,21 @@ target_link_options(probe PRIVATE ${WASM_LINKER_ARGS})
 set_target_properties(probe PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
 )
+
+# Assert no post-MVP feature crept into any object. A module declaring one is
+# rejected by the device silently, so this has to be caught at build time.
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+    foreach(target foxhunt hello probe)
+        add_custom_command(TARGET ${target} POST_BUILD
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tools/verify_mvp.py
+                $<TARGET_OBJECTS:${target}>
+            COMMAND_EXPAND_LISTS
+            VERBATIM
+            COMMENT "Checking ${target} for post-MVP WASM features"
+        )
+    endforeach()
+else()
+    message(WARNING "Python3 not found - skipping post-MVP WASM feature check")
+endif()
