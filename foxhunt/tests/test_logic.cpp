@@ -212,6 +212,43 @@ void test_meter() {
     }
 }
 
+void test_level_scale() {
+    using namespace foxhunt;
+
+    // Ends of the scale, and the clamping beyond them.
+    CHECK(df::level_percent(df::kFloorDbm) == 0);
+    CHECK(df::level_percent(df::kCeilDbm) == 100);
+    CHECK(df::level_percent(df::kFloorDbm - 40) == 0);
+    CHECK(df::level_percent(df::kCeilDbm + 40) == 100);
+
+    // Monotonic across the whole span.
+    for (int dbm = df::kFloorDbm; dbm < df::kCeilDbm; ++dbm) {
+        CHECK(df::level_percent(dbm) <= df::level_percent(dbm + 1));
+    }
+
+    // The bug this replaced: an auto-ranged bar reads zero on a steady signal,
+    // however strong it is. A fixed scale must not.
+    df::Meter steady;
+    for (int i = 0; i < 300; ++i) {
+        steady.push(-89);
+    }
+    CHECK(steady.percent() == 0);       // relative: correctly says "no change"
+    CHECK(steady.level() > 20);         // absolute: says "there is a signal"
+    CHECK(steady.level() == df::level_percent(-89));
+
+    // A stronger steady signal must read higher than a weaker one, which is the
+    // property the relative scale cannot offer.
+    df::Meter strong;
+    for (int i = 0; i < 300; ++i) {
+        strong.push(-55);
+    }
+    CHECK(strong.level() > steady.level());
+
+    // Nothing sampled yet reads zero rather than the floor's percentage.
+    df::Meter fresh;
+    CHECK(fresh.level() == 0);
+}
+
 void test_rotation_scan() {
     using namespace foxhunt;
 
@@ -335,6 +372,7 @@ const Test kTests[] = {
     {"config blob", test_config_blob},
     {"rssi normalisation", test_rssi_normalisation},
     {"meter", test_meter},
+    {"level scale", test_level_scale},
     {"rotation scan", test_rotation_scan},
     {"rose geometry", test_rose_geometry},
     {"audio feedback", test_audio_feedback},

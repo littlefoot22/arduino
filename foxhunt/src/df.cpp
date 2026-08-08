@@ -116,6 +116,18 @@ Trend Meter::trend() const {
     return Trend::kFlat;
 }
 
+int level_percent(int dbm) {
+    const int span = kCeilDbm - kFloorDbm;
+    return clamp(((dbm - kFloorDbm) * 100) / span, 0, 100);
+}
+
+int Meter::level() const {
+    if (!have_sample_) {
+        return 0;
+    }
+    return level_percent(smoothed());
+}
+
 int Meter::percent() const {
     if (!have_sample_) {
         return 0;

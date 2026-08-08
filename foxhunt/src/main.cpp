@@ -413,7 +413,7 @@ void service_screen() {
         g_app.scan.push(g_app.now_ms, dbm);
     }
 
-    const int percent = g_app.meter.percent();
+    const int percent = g_app.meter.level();
 
     if (g_app.screen == Screen::kHunt) {
         service_audio(percent);

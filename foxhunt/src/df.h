@@ -20,6 +20,18 @@ inline constexpr int kQ = 256;
 /// appears to limit how many a panel can hold.
 inline constexpr int kRoseSectors = 8;
 
+/// Range the signal bar spans, in dBm.
+///
+/// About the CC1101's noise floor at the bottom and a beacon close enough to be
+/// in sight at the top. A fixed scale rather than an auto-ranged one, because
+/// an auto-ranged bar reads zero whenever the signal holds steady - technically
+/// correct, and useless to look at while standing still.
+inline constexpr int kFloorDbm = -110;
+inline constexpr int kCeilDbm = -40;
+
+/// Maps a dBm reading onto 0-100 across that range, clamped at both ends.
+int level_percent(int dbm);
+
 /// Returned by Meter::trend().
 enum class Trend : int8_t { kColder = -1, kFlat = 0, kWarmer = 1 };
 
@@ -55,6 +67,12 @@ public:
     int trough() const;
 
     Trend trend() const;
+
+    /// Signal as 0-100 on the fixed kFloorDbm..kCeilDbm scale.
+    ///
+    /// What the bar and the audio pitch use: it always reflects how strong the
+    /// signal actually is, whether or not it is changing.
+    int level() const;
 
     /// Signal as 0-100 across the recently observed range.
     ///

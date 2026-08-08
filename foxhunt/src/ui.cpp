@@ -302,7 +302,7 @@ void update_hunt(int fox_index, const df::Meter& meter, int gain_step, int bw_in
         return;
     }
 
-    const int percent = meter.percent();
+    const int percent = meter.level();
 
     setControlValue(kPanelHunt, kHuntDbm, meter.valid() ? meter.smoothed() : 0);
     setControlValue(kPanelHunt, kHuntBar, percent);
