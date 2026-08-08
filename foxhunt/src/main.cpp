@@ -336,6 +336,20 @@ void service_screen() {
 int main() {
     using namespace foxhunt;
 
+    // Static constructors are not guaranteed to run under -nostdlib with
+    // --no-entry, so bring every piece of mutable state up explicitly.
+    g_app.screen = Screen::kSelect;
+    g_app.fox_index = 0;
+    g_app.gain_step = 0;
+    g_app.bw_index = 0;
+    g_app.tuned_ok = false;
+    g_app.now_ms = 0U;
+    g_app.frame = 0;
+    g_app.next_chirp_ms = 0U;
+    g_app.should_exit = false;
+    g_app.meter.reset();
+    g_app.scan.clear();
+
     // 4 is the value the vendor radio example uses, and it is the only setting
     // known to work with a visible panel. 0 looked like it should hand the app
     // every button, but that was a guess and is not worth risking here.

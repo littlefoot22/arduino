@@ -132,18 +132,21 @@ int Meter::percent() const {
 
 // --------------------------------------------------------- RotationScan -----
 
-RotationScan::RotationScan() : start_ms_(0U), duration_ms_(0U), active_(false), complete_(false) {
+RotationScan::RotationScan() { clear(); }
+
+void RotationScan::clear() {
     for (int i = 0; i < kRoseSectors; ++i) {
         level_[i] = kNoReading;
         filled_[i] = false;
     }
+    start_ms_ = 0U;
+    duration_ms_ = 0U;
+    active_ = false;
+    complete_ = false;
 }
 
 void RotationScan::begin(uint32_t now_ms, uint32_t duration_ms) {
-    for (int i = 0; i < kRoseSectors; ++i) {
-        level_[i] = kNoReading;
-        filled_[i] = false;
-    }
+    clear();
     start_ms_ = now_ms;
     duration_ms_ = (duration_ms == 0U) ? 1U : duration_ms;
     active_ = true;

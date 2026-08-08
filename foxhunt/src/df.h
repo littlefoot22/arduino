@@ -82,6 +82,13 @@ class RotationScan {
 public:
     RotationScan();
 
+    /// Returns to the empty state.
+    ///
+    /// Call this explicitly at startup: the module is linked with -nostdlib and
+    /// --no-entry, so nothing guarantees static constructors ever run, and a
+    /// zero-filled rose would otherwise look like sixteen sectors reading 0 dBm.
+    void clear();
+
     /// Clears the rose and starts a sweep lasting `duration_ms`.
     void begin(uint32_t now_ms, uint32_t duration_ms);
 

@@ -32,7 +32,22 @@ set(WARNING_ARGS
 # wasm32-wasip1 is the current spelling of the triple the FreeWili examples call
 # wasm32-unknown-wasi; the old name is a hard error from wasi-sdk 33 on. If you
 # are on an SDK older than 25, swap it back.
-set(WASM_COMPILER_ARGS --target=wasm32-wasip1 -O3 -flto -mbulk-memory)
+#
+# -mcpu=mvp pins the WebAssembly feature set to the original MVP, then
+# -mbulk-memory adds back the one extension the vendor examples opt into.
+#
+# This matters more than it looks. Recent clang enables reference-types,
+# multivalue, sign-ext, nontrapping-fptoint and extended-const by default, and
+# the FreeWili's embedded interpreter rejects a module that declares them - it
+# fails validation and simply never runs, with no error anywhere. A device that
+# does nothing at all, not even light an LED, is the symptom.
+#
+# -nostdlib is part of the same fix rather than an optimisation: wasi-sdk ships
+# a precompiled sysroot built with those same post-MVP features, and the linker
+# unions their feature flags into the output even when almost no libc is used.
+# This app calls none of it (all formatting is hand-rolled in ui.cpp), so
+# dropping the sysroot is what actually gets the feature list clean.
+set(WASM_COMPILER_ARGS --target=wasm32-wasip1 -mcpu=mvp -mbulk-memory -nostdlib -O3 -flto)
 
 # The FreeWili gives a WASM app exactly one 64 KB page for stack plus heap, so
 # these limits are hardware facts rather than preferences.
@@ -40,6 +55,7 @@ set(WASM_COMPILER_ARGS --target=wasm32-wasip1 -O3 -flto -mbulk-memory)
 # Matches the vendor examples. The built module carries only ~630 bytes of
 # static data, so a 48 KB stack still leaves room inside the single page.
 set(WASM_LINKER_ARGS
+    "-nostdlib"
     "-Wl,--no-entry"
     "-Wl,--export-all"
     "-Wl,--lto-O3"
