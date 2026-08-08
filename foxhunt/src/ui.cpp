@@ -198,6 +198,12 @@ const char* rose_glyph(int level_db, int weakest, int strongest, bool filled, bo
 
 }  // namespace
 
+void board_led(int index, int r, int g, int b, int duration_ms, int mode) {
+    setBoardLED(index, (r * kLedBrightnessPct) / 100, (g * kLedBrightnessPct) / 100,
+                (b * kLedBrightnessPct) / 100, duration_ms,
+                static_cast<LEDManagerLEDMode>(mode));
+}
+
 // ------------------------------------------------------------ construction --
 
 void build_all() {
@@ -454,16 +460,16 @@ void update_leds(int percent) {
     for (int i = 0; i < kBoardLeds; ++i) {
         if (i < lit) {
             const int ramp = (i * 255) / (kBoardLeds - 1);
-            setBoardLED(i, ramp, 255 - ramp, 0, 200, ledsimplevalue);
+            board_led(i, ramp, 255 - ramp, 0, 200, ledsimplevalue);
         } else {
-            setBoardLED(i, 0, 0, 0, 200, ledsimplevalue);
+            board_led(i, 0, 0, 0, 200, ledsimplevalue);
         }
     }
 }
 
 void clear_leds() {
     for (int i = 0; i < kBoardLeds; ++i) {
-        setBoardLED(i, 0, 0, 0, 100, ledsimplevalue);
+        board_led(i, 0, 0, 0, 100, ledsimplevalue);
     }
 }
 

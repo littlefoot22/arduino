@@ -124,22 +124,22 @@ App g_app;
 void flash_event_led(int event) {
     switch (event) {
         case FWGUI_EVENT_GRAY_BUTTON:
-            setBoardLED(0, 255, 255, 255, 400, ledflash);
+            ui::board_led(0, 255, 255, 255, 400, ledflash);
             break;
         case FWGUI_EVENT_YELLOW_BUTTON:
-            setBoardLED(1, 255, 255, 0, 400, ledflash);
+            ui::board_led(1, 255, 255, 0, 400, ledflash);
             break;
         case FWGUI_EVENT_GREEN_BUTTON:
-            setBoardLED(2, 0, 255, 0, 400, ledflash);
+            ui::board_led(2, 0, 255, 0, 400, ledflash);
             break;
         case FWGUI_EVENT_BLUE_BUTTON:
-            setBoardLED(3, 0, 0, 255, 400, ledflash);
+            ui::board_led(3, 0, 0, 255, 400, ledflash);
             break;
         case FWGUI_EVENT_RED_BUTTON:
-            setBoardLED(4, 255, 0, 0, 400, ledflash);
+            ui::board_led(4, 255, 0, 0, 400, ledflash);
             break;
         default:
-            setBoardLED(5, 255, 0, 255, 400, ledflash);
+            ui::board_led(5, 255, 0, 255, 400, ledflash);
             break;
     }
 }
@@ -177,8 +177,17 @@ TuneResult tune(uint32_t hz, int gain_step, int bw_index) {
         cc1101::build_rx_config(g_config, sizeof(g_config), hz, gain_step, bw_index);
     result.built = (len != 0U);
 
+    if (!kUseRadioConfig) {
+        // Nothing to load, so touch the radio as little as possible. Cycling
+        // IDLE/RX five times per sweep achieved nothing except giving the
+        // driver more chances to fall over, which is what a rescan did. The
+        // receiver is put into RX once at startup and left there.
+        g_last_tune = result;
+        return result;
+    }
+
     RadioSetIdle(kRadio);
-    if (result.built && kUseRadioConfig) {
+    if (result.built) {
         result.cfg_rc = RadioLoadConfig(kRadio, g_config, static_cast<int>(len));
     }
     result.rx_rc = RadioSetRx(kRadio);
@@ -547,6 +556,11 @@ int main() {
     // call.
 
     ui::build_all();
+
+    // Put the receiver into RX once. With retuning disabled this is the only
+    // radio state change the app makes, and RSSI needs the receiver open.
+    RadioSetRx(kRadio);
+
     enter_select();
 
     while (!g_app.should_exit) {
@@ -566,7 +580,7 @@ int main() {
 
         // Heartbeat, so a running app is distinguishable from a frozen one.
         if ((g_app.frame % 20) == 0) {
-            setBoardLED(6, 255, 0, 0, 400, ledpulsefade);
+            ui::board_led(6, 255, 0, 0, 400, ledpulsefade);
         }
 
         waitms(static_cast<int>(kSampleMs));

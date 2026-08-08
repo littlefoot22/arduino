@@ -23,6 +23,16 @@ inline constexpr int kScreenH = 240;
 /// Board LEDs usable as a coarse signal bar.
 inline constexpr int kBoardLeds = 7;
 
+/// Percentage of full brightness the board LEDs are driven at.
+///
+/// These sit inches from your face in the dark, and at full scale they are
+/// genuinely unpleasant to hunt with. Low enough to read at arm's length,
+/// dim enough not to wreck your night vision.
+inline constexpr int kLedBrightnessPct = 20;
+
+/// Sets a board LED, scaled to kLedBrightnessPct. Use instead of setBoardLED.
+void board_led(int index, int r, int g, int b, int duration_ms, int mode);
+
 /// Builds every panel. Call once at startup.
 void build_all();
 
