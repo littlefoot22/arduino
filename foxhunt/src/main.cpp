@@ -223,7 +223,12 @@ void radio_idle() { RadioSetIdle(kRadio); }
 /// transition is what clears it.
 void radio_rearm() {
     RadioSetIdle(kRadio);
+    // Let the state change settle before asking for the opposite one. Issuing
+    // these back to back repeatedly is what hung the sweep on its second
+    // channel.
+    waitms(20);
     RadioSetRx(kRadio);
+    waitms(static_cast<int>(kRetuneSettleMs));
 }
 
 int read_rssi_dbm() { return cc1101::normalize_rssi(RadioGetRSSI(kRadio)); }
@@ -252,6 +257,10 @@ void begin_band_scan() {
     g_app.scan_index = 0;
     g_app.scan_sample = 0;
     g_app.scan_peak = -200;
+
+    // One flush for the whole sweep.
+    radio_rearm();
+
     g_app.scan_running = true;
 }
 
@@ -291,8 +300,20 @@ void service_band_scan() {
     // First pass on a channel: tune to it.
     if (g_app.scan_sample == 0) {
         g_app.scan_peak = -200;
-        const TuneResult result =
-            tune(kFoxes[g_app.scan_index].freq_hz, g_app.gain_step, g_app.bw_index);
+
+        // Retune per channel only when there is a configuration to load.
+        //
+        // Without one, tune() cannot change frequency, so calling it each
+        // channel bought nothing and cost an IDLE/RX cycle every 300 ms - which
+        // hung the sweep the second time it happened. The receiver is flushed
+        // once when the sweep starts and parked when it ends; in between, this
+        // just reads.
+        TuneResult result;
+        if (kUseRadioConfig) {
+            result = tune(kFoxes[g_app.scan_index].freq_hz, g_app.gain_step, g_app.bw_index);
+        } else {
+            result.built = cc1101::is_tunable(kFoxes[g_app.scan_index].freq_hz);
+        }
         ui::set_scan_status(g_app.scan_index, result.cfg_rc, result.rx_rc);
         if (!result.built) {
             // Only a frequency this part cannot synthesise gets skipped; a
