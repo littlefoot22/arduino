@@ -23,15 +23,20 @@ namespace {
 /// Radio 1 of the two CC1101s.
 constexpr int kRadio = 1;
 
-/// Sampling period. 20 Hz is fast enough that the meter tracks an antenna
-/// swing, slow enough to leave the display processor time to repaint.
-constexpr uint32_t kSampleMs = 50U;
+/// Sampling period. 10 Hz still tracks an antenna swing comfortably - the
+/// smoothing filter is the limit on how fast the needle moves, not the sample
+/// rate - and this firmware has not enjoyed being asked for anything quickly.
+constexpr uint32_t kSampleMs = 100U;
 
-/// Repaint every fourth sample; the screen cannot usefully show more.
-constexpr int kFramesPerRepaint = 4;
+/// Repaint every third sample; the screen cannot usefully show more.
+constexpr int kFramesPerRepaint = 3;
 
-/// Re-arm the receiver every this many samples, about two seconds at 20 Hz.
-constexpr int kFramesPerRearm = 40;
+/// Re-arm the receiver every this many samples, about ten seconds at 10 Hz.
+///
+/// Frequent enough that the receiver never sits open long enough to fall over,
+/// rare enough to stay clear of what hung the sweep - IDLE/RX cycles repeating
+/// every few hundred milliseconds.
+constexpr int kFramesPerRearm = 100;
 
 /// How long one full body rotation should take.
 constexpr uint32_t kSweepMs = 12000U;
@@ -40,9 +45,6 @@ constexpr uint32_t kSweepMs = 12000U;
 /// recalibrates on the IDLE->RX transition and the AGC needs a moment to
 /// converge on the new channel.
 constexpr uint32_t kRetuneSettleMs = 30U;
-
-/// Samples averaged per channel during a band scan.
-constexpr int kScanSamplesPerChannel = 6;
 
 /// Set false for a silent hunt.
 constexpr bool kAudioEnabled = true;
@@ -64,7 +66,7 @@ constexpr bool kAudioEnabled = true;
 /// on once that is known, and set kConfigMaxBytes to match.
 constexpr bool kUseRadioConfig = false;
 
-enum class Screen : uint8_t { kSelect, kHunt, kRose, kScan };
+enum class Screen : uint8_t { kSelect, kHunt, kRose };
 
 /// Work a button asks for, carried out later by the main loop.
 ///
@@ -73,7 +75,7 @@ enum class Screen : uint8_t { kSelect, kHunt, kRose, kScan };
 /// run_band_scan, tune - and the interpreter trapped with a stack overflow.
 /// Every sequence that ran cleanly during bring-up called the radio from close
 /// to main(), so depth, not the calls themselves, is what this device minds.
-enum class Request : uint8_t { kNone, kSelect, kHunt, kRose, kScan, kRescan };
+enum class Request : uint8_t { kNone, kSelect, kHunt, kRose };
 
 struct App {
     Screen screen = Screen::kSelect;
@@ -101,15 +103,6 @@ struct App {
     int last_odd_event = -1;
     int odd_events = 0;
 
-    /// Band scan progress. The sweep runs one reading per main-loop pass rather
-    /// than in a nested loop, which keeps the radio calls shallow and leaves
-    /// the app responsive instead of frozen for the second and a half it takes.
-    bool scan_running = false;
-    int scan_index = 0;
-    int scan_sample = 0;
-    int scan_peak = -200;
-    int scan_results[kFoxCount] = {};
-    bool scan_measured[kFoxCount] = {};
 };
 
 App g_app;
@@ -244,104 +237,6 @@ void service_audio(int percent) {
         g_app.now_ms + static_cast<uint32_t>(df::chirp_interval_ms_for(percent));
 }
 
-/// Starts a sweep of all 70 cm fox channels.
-///
-/// Worth running whenever you lose the trail: it answers "am I even chasing the
-/// right fox?" before you spend twenty minutes walking the wrong bearing.
-void begin_band_scan() {
-    for (int i = 0; i < kFoxCount; ++i) {
-        g_app.scan_results[i] = -200;
-        g_app.scan_measured[i] = false;
-        ui::update_scan_row(i, 0, false, -1);
-    }
-    g_app.scan_index = 0;
-    g_app.scan_sample = 0;
-    g_app.scan_peak = -200;
-
-    // One flush for the whole sweep.
-    radio_rearm();
-
-    g_app.scan_running = true;
-}
-
-/// Index of the strongest channel measured so far, or -1 if none.
-int best_scanned() {
-    int best = -1;
-    for (int i = 0; i < kFoxCount; ++i) {
-        if (g_app.scan_measured[i] && (best < 0 || g_app.scan_results[i] > g_app.scan_results[best])) {
-            best = i;
-        }
-    }
-    return best;
-}
-
-/// Advances the sweep by one reading. Called once per main-loop pass.
-///
-/// One channel used to be measured in a nested loop that blocked for a second
-/// and a half; spreading it over passes keeps the radio calls two frames from
-/// main() and leaves buttons responsive while it runs.
-void service_band_scan() {
-    if (!g_app.scan_running) {
-        return;
-    }
-
-    if (g_app.scan_index >= kFoxCount) {
-        g_app.scan_running = false;
-        const int best = best_scanned();
-        for (int i = 0; i < kFoxCount; ++i) {
-            ui::update_scan_row(i, g_app.scan_results[i], g_app.scan_measured[i], best);
-        }
-        // Park the receiver. The sweep is done and nothing reads it again
-        // until a screen that samples is entered.
-        radio_idle();
-        return;
-    }
-
-    // First pass on a channel: tune to it.
-    if (g_app.scan_sample == 0) {
-        g_app.scan_peak = -200;
-
-        // Retune per channel only when there is a configuration to load.
-        //
-        // Without one, tune() cannot change frequency, so calling it each
-        // channel bought nothing and cost an IDLE/RX cycle every 300 ms - which
-        // hung the sweep the second time it happened. The receiver is flushed
-        // once when the sweep starts and parked when it ends; in between, this
-        // just reads.
-        TuneResult result;
-        if (kUseRadioConfig) {
-            result = tune(kFoxes[g_app.scan_index].freq_hz, g_app.gain_step, g_app.bw_index);
-        } else {
-            result.built = cc1101::is_tunable(kFoxes[g_app.scan_index].freq_hz);
-        }
-        ui::set_scan_status(g_app.scan_index, result.cfg_rc, result.rx_rc);
-        if (!result.built) {
-            // Only a frequency this part cannot synthesise gets skipped; a
-            // refused config still gets measured, so the reading can be
-            // compared against the others.
-            ui::update_scan_row(g_app.scan_index, 0, false, -1);
-            ++g_app.scan_index;
-            return;
-        }
-    }
-
-    // Peak-hold rather than mean: a beacon keying on and off would otherwise
-    // average down to nothing.
-    const int dbm = read_rssi_dbm();
-    if (dbm > g_app.scan_peak) {
-        g_app.scan_peak = dbm;
-    }
-    ++g_app.scan_sample;
-
-    if (g_app.scan_sample >= kScanSamplesPerChannel) {
-        g_app.scan_results[g_app.scan_index] = g_app.scan_peak;
-        g_app.scan_measured[g_app.scan_index] = true;
-        ui::update_scan_row(g_app.scan_index, g_app.scan_peak, true, best_scanned());
-        ++g_app.scan_index;
-        g_app.scan_sample = 0;
-    }
-}
-
 void enter_select() {
     g_app.screen = Screen::kSelect;
     radio_idle();
@@ -363,12 +258,6 @@ void enter_rose() {
     ui::update_rose(g_app.scan, g_app.now_ms);
 }
 
-void enter_scan() {
-    g_app.screen = Screen::kScan;
-    ui::show_scan();
-    begin_band_scan();
-}
-
 void handle_select_button(int event) {
     switch (event) {
         case FWGUI_EVENT_GRAY_BUTTON:
@@ -381,9 +270,6 @@ void handle_select_button(int event) {
             break;
         case FWGUI_EVENT_GREEN_BUTTON:
             g_app.pending = Request::kHunt;
-            break;
-        case FWGUI_EVENT_BLUE_BUTTON:
-            g_app.pending = Request::kScan;
             break;
         case FWGUI_EVENT_RED_BUTTON:
             g_app.should_exit = true;
@@ -439,22 +325,6 @@ void handle_rose_button(int event) {
     }
 }
 
-void handle_scan_button(int event) {
-    switch (event) {
-        case FWGUI_EVENT_GREEN_BUTTON:
-            g_app.pending = Request::kRescan;
-            break;
-        case FWGUI_EVENT_BLUE_BUTTON:
-            g_app.pending = Request::kSelect;
-            break;
-        case FWGUI_EVENT_RED_BUTTON:
-            g_app.should_exit = true;
-            break;
-        default:
-            break;
-    }
-}
-
 /// Carries out the work a button asked for, at main-loop depth.
 void service_request() {
     const Request request = g_app.pending;
@@ -469,12 +339,6 @@ void service_request() {
             break;
         case Request::kRose:
             enter_rose();
-            break;
-        case Request::kScan:
-            enter_scan();
-            break;
-        case Request::kRescan:
-            begin_band_scan();
             break;
         case Request::kNone:
         default:
@@ -517,9 +381,6 @@ void pump_events() {
             case Screen::kRose:
                 handle_rose_button(event);
                 break;
-            case Screen::kScan:
-                handle_scan_button(event);
-                break;
             default:
                 break;
         }
@@ -531,7 +392,7 @@ void pump_events() {
 
 /// One sampling tick for whichever screen is live.
 void service_screen() {
-    if (g_app.screen == Screen::kSelect || g_app.screen == Screen::kScan) {
+    if (g_app.screen == Screen::kSelect) {
         return;
     }
 
@@ -613,7 +474,6 @@ int main() {
             break;
         }
         service_request();
-        service_band_scan();
         service_screen();
 
         // Advance here rather than inside service_screen(), which returns early

@@ -152,15 +152,6 @@ enum RoseControl : int {
     kRoseFirstDot = 4,  // eight dots follow: 4-11
 };
 
-enum ScanControl : int {
-    kScanTitle = 0,
-    kScanStatus = 11,
-    // One text control per row carries the fox name and its reading together,
-    // rather than two, which halves the control count on this panel.
-    kScanFirstRow = 1,  // five rows: 1-5
-    kScanFirstBar = 6,  // five bargraphs: 6-10
-};
-
 /// Center and radius of the compass rose.
 constexpr int kRoseCx = 158;
 constexpr int kRoseCy = 118;
@@ -219,13 +210,13 @@ void build_all() {
     }
 
     addControlText(kPanelSelect, kSelNote, 8, 200, kProp, kTextSmall, kDim.r, kDim.g, kDim.b,
-                   "Fox 1-5 are 2m - outside CC1101 range");
+                   "Set this freq on the board Radio panel");
 
     setPanelMenuText(kPanelSelect, 0, "UP");
     setPanelMenuText(kPanelSelect, 1, "DOWN");
 
     setPanelMenuText(kPanelSelect, 2, "HUNT");
-    setPanelMenuText(kPanelSelect, 3, "SCAN");
+    setPanelMenuText(kPanelSelect, 3, " ");
     setPanelMenuText(kPanelSelect, 4, "EXIT");
 
     // ---- hunt meter ----
@@ -269,23 +260,6 @@ void build_all() {
     setPanelMenuText(kPanelRose, 3, "BACK");
     setPanelMenuText(kPanelRose, 4, "EXIT");
 
-    // ---- band scan ----
-    addPanel(kPanelScan, 1, 0, 0, 0, kBg.r, kBg.g, kBg.b, 1);
-    addControlText(kPanelScan, kScanTitle, 8, 4, kProp, kTextTitle, kAmber.r, kAmber.g, kAmber.b,
-                   "BAND SCAN");
-    for (int i = 0; i < kFoxCount; ++i) {
-        const int y = 44 + (i * 34);
-        addControlText(kPanelScan, kScanFirstRow + i, 8, y, kMono, kTextRow, kWhite.r, kWhite.g,
-                       kWhite.b, kFoxes[i].name);
-        addControlBargraph(kPanelScan, kScanFirstBar + i, 1, 150, y, 160, 20, 0, 100, kGreen.r,
-                           kGreen.g, kGreen.b);
-    }
-    addControlText(kPanelScan, kScanStatus, 8, 218, kMono, kTextSmall, kDim.r, kDim.g, kDim.b, " ");
-    setPanelMenuText(kPanelScan, 0, " ");
-    setPanelMenuText(kPanelScan, 1, " ");
-    setPanelMenuText(kPanelScan, 2, "RESCAN");
-    setPanelMenuText(kPanelScan, 3, "BACK");
-    setPanelMenuText(kPanelScan, 4, "EXIT");
 
 }
 
@@ -297,8 +271,6 @@ void show_select(int selected_index) {
 void show_hunt() { showPanel(kPanelHunt); }
 
 void show_rose() { showPanel(kPanelRose); }
-
-void show_scan() { showPanel(kPanelScan); }
 
 // ----------------------------------------------------------------- update ---
 
@@ -376,16 +348,6 @@ void set_hunt_tune_status(bool built, int cfg_rc, int rx_rc) {
     set_text(kPanelHunt, kHuntStatus, g_buf.c_str());
 }
 
-void set_scan_status(int channel, int cfg_rc, int rx_rc) {
-    g_buf.clear();
-    if (cfg_rc < 0) {
-        g_buf.str("ch ").num(channel).str("  retune off - all rows same freq");
-    } else {
-        g_buf.str("ch ").num(channel).str("  cfg ").num(cfg_rc).str("  rx ").num(rx_rc);
-    }
-    set_text(kPanelScan, kScanStatus, g_buf.c_str());
-}
-
 void set_select_debug(int last_event, int count) {
     g_buf.clear();
     g_buf.str("evt ").num(last_event).str("  x").num(count);
@@ -430,27 +392,6 @@ void update_rose(const df::RotationScan& scan, uint32_t now_ms) {
     set_text(kPanelRose, kRoseHint,
              contrast >= 6 ? "Good null - walk that way"
                            : "Weak null - move and scan again");
-}
-
-void update_scan_row(int fox_index, int dbm, bool measured, int strongest_index) {
-    // Name, marker and reading share one control.
-    g_buf.clear();
-    g_buf.str(fox_index == strongest_index ? "*" : " ").str(kFoxes[fox_index].name).ch(' ');
-    if (measured) {
-        g_buf.num(dbm);
-    } else {
-        g_buf.str("--");
-    }
-    set_text(kPanelScan, kScanFirstRow + fox_index, g_buf.c_str());
-
-    // -110 dBm is about the CC1101's noise floor and -40 a very close beacon;
-    // that span maps the whole approach onto the bar.
-    int pct = 0;
-    if (measured) {
-        pct = ((dbm + 110) * 100) / 70;
-        pct = (pct < 0) ? 0 : ((pct > 100) ? 100 : pct);
-    }
-    setControlValue(kPanelScan, kScanFirstBar + fox_index, pct);
 }
 
 void update_leds(int percent) {

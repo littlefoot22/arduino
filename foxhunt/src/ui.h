@@ -13,7 +13,6 @@ enum Panel : int {
     kPanelSelect = 1,
     kPanelHunt = 2,
     kPanelRose = 3,
-    kPanelScan = 4,
 };
 
 /// Display geometry, confirmed against the stock example apps.
@@ -39,7 +38,6 @@ void build_all();
 void show_select(int selected_index);
 void show_hunt();
 void show_rose();
-void show_scan();
 
 /// Repaints the fox list with `selected_index` marked.
 void update_select(int selected_index);
@@ -49,9 +47,6 @@ void update_hunt(int fox_index, const df::Meter& meter, int gain_step, int bw_in
 
 /// Repaints the rose. `now_ms` drives the progress readout during a sweep.
 void update_rose(const df::RotationScan& scan, uint32_t now_ms);
-
-/// Repaints one row of the band-scan table.
-void update_scan_row(int fox_index, int dbm, bool measured, int strongest_index);
 
 /// Drives the board LEDs as a 7-segment signal bar.
 void update_leds(int percent);
@@ -65,8 +60,6 @@ void set_hunt_status(const char* text);
 /// Reports what the radio said about the last retune, on the hunt panel.
 void set_hunt_tune_status(bool built, int cfg_rc, int rx_rc);
 
-/// Reports scan progress and the radio's return codes, on the scan panel.
-void set_scan_status(int channel, int cfg_rc, int rx_rc);
 
 /// Shows the most recent unrecognised event code on the select panel.
 ///

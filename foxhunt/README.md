@@ -47,8 +47,7 @@ passband, and a reading tracks the strongest signal in that window rather than
 one channel in isolation.
 
 In practice this is fine for homing on one fox at a time — the near one
-dominates — but you cannot cleanly separate two foxes of similar strength. The
-Band Scan screen exists partly to tell you when that's happening.
+dominates — but you cannot cleanly separate two foxes of similar strength.
 
 ---
 
@@ -62,7 +61,7 @@ export WASI_SDK_PATH=/opt/wasi-sdk-33.0-x86_64-linux
 ./build.sh
 ```
 
-Output is `build/foxhunt.wasm` (~24 KB).
+Output is `build/foxhunt.wasm` (~7 KB). Size matters here; see below.
 
 ### Flashing
 
@@ -87,11 +86,51 @@ run on your machine:
 ./run_tests.sh
 ```
 
-720 checks covering frequency-word conversion against TI's published register
+704 checks covering frequency-word conversion against TI's published register
 values, band-limit rejection, config-blob layout, RSSI conversion, meter
 behaviour, and rotation-scan binning.
 
 ---
+
+## Firmware reality check
+
+This board runs firmware older than `fwwasm.h` documents, and the header is not
+a reliable guide to what it implements. Two things that cost real time, recorded
+here so they are not rediscovered:
+
+- **`setCanDisplayReactToButtons()` does not exist.** Importing it alone stops
+  the module instantiating - no error, no output, a board that simply sits
+  there. The vendor's own radio example calls it, so that example cannot run
+  here either.
+- **`RadioLoadConfig()` hard-resets the board** when handed a 56-byte register
+  list. `tools/step.cpp` passed six bytes to the same call without trouble,
+  which points at a fixed-size buffer rather than at the contents. The call is
+  documented `@todo` with no vendor example, so its size and layout were always
+  inference.
+
+The build also has to be pinned to the WebAssembly MVP and kept small; see the
+comments in `CMakeLists.txt`, which explain why in more detail than is worth
+repeating here.
+
+## What works today
+
+**Retuning does not.** Without `RadioLoadConfig` the app cannot change channel,
+so it reads whatever frequency the radio is already parked on.
+
+**Set the frequency by hand** from the board's own Radio panel - `f`, then the
+figure shown on the select screen - and everything else works: the meter, the
+warmer/colder trend, the audible pitch, the LED bar and the rotation scan. That
+is enough to hunt one fox at a time, which is how a foxhunt is run anyway.
+
+The band scan is gone. It swept five channels, which measured the same
+frequency five times while retuning was unavailable, and it crashed the board
+doing it. Not worth the risk for information it could not produce. It comes back
+when `RadioLoadConfig` does.
+
+`tools/radiocfg.cpp` finds the largest buffer that call survives - one size per
+binary, since a reset clears the screen and would otherwise destroy its own
+evidence. Start with `radiocfg47`: a bare CC1101 register set is exactly 47
+bytes, which would explain why 56 overran something.
 
 ## Using it
 
@@ -100,25 +139,25 @@ right. Each screen labels them.
 
 ### Fox Select
 
-Pick your target. `gray`/`yellow` move, `green` starts hunting, `blue` jumps to
-Band Scan, `red` exits.
+Pick your target. The frequency shown is the one to dial into the Radio panel.
+`gray`/`yellow` move, `green` starts hunting, `red` exits.
 
 ### Hunt
 
 The main screen.
 
-- **Big number** — smoothed signal in dBm.
-- **Bar** — auto-ranged 0–100%. The scale slides as you close in, so the meter
+- **Big number** - smoothed signal in dBm.
+- **Bar** - auto-ranged 0-100%. The scale slides as you close in, so the meter
   keeps resolving differences instead of pinning at full scale. It answers
   "stronger than a moment ago?", which is the only question that matters.
-- **WARMER / colder / steady** — a fast average compared against a slow one.
+- **WARMER / colder / steady** - a fast average compared against a slow one.
   This is what you actually walk by; absolute dBm means little without knowing
   the beacon's power or the terrain.
-- **Audio** — pitch rises and chirps get faster with signal, so you can hunt
-  with the screen at your side and watch where you're putting your feet. Set
+- **Audio** - pitch rises and chirps get faster with signal, so you can hunt
+  with the screen at your side and watch where you are putting your feet. Set
   `kAudioEnabled = false` in `src/main.cpp` for a silent hunt.
-- **Board LEDs** — coarse signal bar, readable from the corner of your eye.
-- **ATT− / ATT+** — the attenuator. See below.
+- **Board LEDs** - coarse signal bar at 20% brightness (`kLedBrightnessPct`).
+- **ATT- / ATT+** - the attenuator. See below.
 
 `green` opens the rotation scan, `blue` goes back, `red` exits.
 
@@ -157,12 +196,6 @@ It also reports **null depth**, the spread between strongest and weakest sector:
   (common near buildings and vehicles), or you're close enough that body
   shielding no longer produces a null. Move 50 m and scan again.
 
-### Band Scan
-
-Sweeps all five 70 cm channels and marks the strongest with `*`. Worth running
-whenever you lose the trail — it answers "am I even chasing the right fox?"
-before you spend twenty minutes walking a wrong bearing.
-
 ---
 
 ## Field technique
@@ -191,7 +224,20 @@ src/df.h/cpp     Meter smoothing, trend, rotation scan, audio mapping  (host-tes
 src/ui.h/cpp     Panels and controls — the only module that calls the host API
 src/main.cpp     Screen state machine and the sampling loop
 tests/           Host-side tests for the two pure modules
+tools/           Bring-up diagnostics, all still useful:
+                   hello      one panel, one string - the known-good baseline
+                   step       cumulative ladder, one host call added per rung
+                   imports    which host functions this firmware actually has
+                   limits     how many panels and controls it accepts
+                   radiocfg   largest buffer RadioLoadConfig survives
+                   probe      staged startup markers on the board LEDs
+                   monitor.py dumps both serial ports from the host
+                   verify_mvp build-time guard against post-MVP WASM features
 ```
+
+When something breaks on this board it usually fails silently, so the way back
+is always the same: start from `hello`, which is known to run, and add one thing
+at a time until it stops.
 
 Sampling runs at 20 Hz; the display repaints at 5 Hz.
 
