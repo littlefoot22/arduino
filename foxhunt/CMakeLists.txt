@@ -67,3 +67,13 @@ target_link_options(${PROJECT_NAME} PRIVATE ${WASM_LINKER_ARGS})
 set_target_properties(${PROJECT_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
 )
+
+# Startup probe, built alongside. Reports progress on the board LEDs so a
+# device that draws nothing can still say how far it got. See tools/probe.cpp.
+add_executable(probe tools/probe.cpp)
+target_link_libraries(probe PUBLIC fwwasm)
+target_compile_options(probe PRIVATE ${WARNING_ARGS} ${WASM_COMPILER_ARGS})
+target_link_options(probe PRIVATE ${WASM_LINKER_ARGS})
+set_target_properties(probe PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+)

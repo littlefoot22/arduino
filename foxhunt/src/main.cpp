@@ -336,9 +336,10 @@ void service_screen() {
 int main() {
     using namespace foxhunt;
 
-    // Take the buttons for ourselves rather than letting the firmware's default
-    // panel navigation consume them.
-    setCanDisplayReactToButtons(0);
+    // 4 is the value the vendor radio example uses, and it is the only setting
+    // known to work with a visible panel. 0 looked like it should hand the app
+    // every button, but that was a guess and is not worth risking here.
+    setCanDisplayReactToButtons(4);
 
     ui::build_all();
     enter_select();

@@ -4,4 +4,4 @@ _deps/
 
 # The prebuilt binary is checked in on purpose, so the app can be flashed from
 # a machine that has no WASI SDK installed. Refresh it with ./release.sh.
-!dist/foxhunt.wasm
+!dist/*.wasm

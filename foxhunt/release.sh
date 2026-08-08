@@ -12,7 +12,8 @@ cd "$(dirname "$0")"
 
 mkdir -p dist
 cp build/foxhunt.wasm dist/foxhunt.wasm
+cp build/probe.wasm dist/probe.wasm
 
 echo
 echo "dist/foxhunt.wasm refreshed"
-sha256sum dist/foxhunt.wasm
+sha256sum dist/*.wasm
