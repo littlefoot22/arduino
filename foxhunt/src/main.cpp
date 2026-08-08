@@ -74,9 +74,11 @@ App g_app;
 /// unlike the screen these survive whatever the firmware is doing:
 ///
 ///   LED 0 white    main() entered
-///   LED 1 blue     panels built
-///   LED 2 green    first panel shown
-///   LED 3 cyan     reached the main loop
+///   LED 1 blue     select panel built
+///   LED 2 green    hunt panel built
+///   LED 3 yellow   rose panel built
+///   LED 4 magenta  scan panel built, build_all() complete
+///   LED 5 cyan     first panel shown, main loop reached
 ///   LED 6 red      pulsing heartbeat
 void stage_led(int index, int r, int g, int b) {
     setBoardLED(index, r, g, b, 60000, ledsimplevalue);
@@ -383,13 +385,11 @@ int main() {
     // button, the workaround is to pick a different one, not to restore this
     // call.
 
+    // build_all() lights LEDs 1-4 as each panel completes.
     ui::build_all();
-    stage_led(1, 0, 0, 255);
 
     enter_select();
-    stage_led(2, 0, 255, 0);
-
-    stage_led(3, 0, 255, 255);
+    stage_led(5, 0, 255, 255);
 
     while (!g_app.should_exit) {
         pump_events();

@@ -195,6 +195,12 @@ const char* rose_glyph(int level_db, int weakest, int strongest, bool filled, bo
     return "-";
 }
 
+/// Lights a build-stage marker.
+///
+/// build_all() is where the app stops on this firmware, and the screen cannot
+/// report that, so each panel signs off on an LED as it completes.
+void mark(int led, int r, int g, int b) { setBoardLED(led, r, g, b, 60000, ledsimplevalue); }
+
 }  // namespace
 
 // ------------------------------------------------------------ construction --
@@ -216,25 +222,29 @@ void build_all() {
     setPanelMenuText(kPanelSelect, 3, "SCAN");
     setPanelMenuText(kPanelSelect, 4, "EXIT");
 
+    mark(1, 0, 0, 255);
+
     // ---- hunt meter ----
     addPanel(kPanelHunt, 1, 0, 0, 0, kBg.r, kBg.g, kBg.b, 1);
     addControlText(kPanelHunt, kHuntFox, 8, 4, kProp, kTextTitle, kAmber.r, kAmber.g, kAmber.b,
                    "FOX");
-    addControlText(kPanelHunt, kHuntFreq, 150, 10, kMono, kTextLabel, kDim.r, kDim.g, kDim.b, "");
+    addControlText(kPanelHunt, kHuntFreq, 150, 10, kMono, kTextLabel, kDim.r, kDim.g, kDim.b, " ");
     addControlNumber(kPanelHunt, kHuntDbm, 1, 14, 36, 200, kNumberFont, kMono, kWhite.r, kWhite.g,
                      kWhite.b, 0, 0, 0, 0);
     addControlBargraph(kPanelHunt, kHuntBar, 1, 14, 96, 292, 34, 0, 100, kGreen.r, kGreen.g,
                        kGreen.b);
-    addControlText(kPanelHunt, kHuntPeak, 14, 138, kMono, kTextLabel, kDim.r, kDim.g, kDim.b, "");
+    addControlText(kPanelHunt, kHuntPeak, 14, 138, kMono, kTextLabel, kDim.r, kDim.g, kDim.b, " ");
     addControlText(kPanelHunt, kHuntTrend, 14, 160, kProp, kTextHuge, kWhite.r, kWhite.g, kWhite.b,
-                   "");
-    addControlText(kPanelHunt, kHuntGain, 14, 206, kMono, kTextSmall, kDim.r, kDim.g, kDim.b, "");
-    addControlText(kPanelHunt, kHuntStatus, 14, 222, kProp, kTextSmall, kDim.r, kDim.g, kDim.b, "");
+                   " ");
+    addControlText(kPanelHunt, kHuntGain, 14, 206, kMono, kTextSmall, kDim.r, kDim.g, kDim.b, " ");
+    addControlText(kPanelHunt, kHuntStatus, 14, 222, kProp, kTextSmall, kDim.r, kDim.g, kDim.b, " ");
     setPanelMenuText(kPanelHunt, 0, "ATT-");
     setPanelMenuText(kPanelHunt, 1, "ATT+");
     setPanelMenuText(kPanelHunt, 2, "ROSE");
     setPanelMenuText(kPanelHunt, 3, "BACK");
     setPanelMenuText(kPanelHunt, 4, "EXIT");
+
+    mark(2, 0, 255, 0);
 
     // ---- rotation rose ----
     addPanel(kPanelRose, 1, 0, 0, 0, kBg.r, kBg.g, kBg.b, 1);
@@ -248,14 +258,16 @@ void build_all() {
     }
     addControlText(kPanelRose, kRoseBearing, kRoseCx - 34, kRoseCy - 14, kProp, kTextTitle,
                    kWhite.r, kWhite.g, kWhite.b, "--");
-    addControlText(kPanelRose, kRoseDetail, 8, 200, kMono, kTextSmall, kDim.r, kDim.g, kDim.b, "");
+    addControlText(kPanelRose, kRoseDetail, 8, 200, kMono, kTextSmall, kDim.r, kDim.g, kDim.b, " ");
     addControlText(kPanelRose, kRoseHint, 8, 218, kProp, kTextSmall, kDim.r, kDim.g, kDim.b,
                    "Hold to chest, turn a full circle");
-    setPanelMenuText(kPanelRose, 0, "");
-    setPanelMenuText(kPanelRose, 1, "");
+    setPanelMenuText(kPanelRose, 0, " ");
+    setPanelMenuText(kPanelRose, 1, " ");
     setPanelMenuText(kPanelRose, 2, "START");
     setPanelMenuText(kPanelRose, 3, "BACK");
     setPanelMenuText(kPanelRose, 4, "EXIT");
+
+    mark(3, 255, 255, 0);
 
     // ---- band scan ----
     addPanel(kPanelScan, 1, 0, 0, 0, kBg.r, kBg.g, kBg.b, 1);
@@ -268,11 +280,13 @@ void build_all() {
         addControlBargraph(kPanelScan, kScanFirstBar + i, 1, 150, y, 160, 20, 0, 100, kGreen.r,
                            kGreen.g, kGreen.b);
     }
-    setPanelMenuText(kPanelScan, 0, "");
-    setPanelMenuText(kPanelScan, 1, "");
+    setPanelMenuText(kPanelScan, 0, " ");
+    setPanelMenuText(kPanelScan, 1, " ");
     setPanelMenuText(kPanelScan, 2, "RESCAN");
     setPanelMenuText(kPanelScan, 3, "BACK");
     setPanelMenuText(kPanelScan, 4, "EXIT");
+
+    mark(4, 255, 0, 255);
 }
 
 void show_select(int selected_index) {
@@ -312,7 +326,7 @@ void update_hunt(int fox_index, const df::Meter& meter, int gain_step, int bw_in
         setControlValue(kPanelHunt, kHuntDbm, 0);
         setControlValue(kPanelHunt, kHuntBar, 0);
         set_text(kPanelHunt, kHuntTrend, "OUT OF BAND");
-        set_text(kPanelHunt, kHuntPeak, "");
+        set_text(kPanelHunt, kHuntPeak, " ");
         return;
     }
 
