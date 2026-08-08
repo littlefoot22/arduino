@@ -53,19 +53,35 @@ set(WARNING_ARGS
 # and took foxhunt.wasm from 24K to 19K.
 #
 # The build asserts all of this - see the verify_mvp target below.
-set(WASM_COMPILER_ARGS --target=wasm32-wasip1 -mcpu=mvp -nostdlib -O3 -flto)
+# -Oz, not -O3. Size is a hard constraint here, not a preference: the device
+# reported "Mem used: 119 of 192" with a 20 KB module, leaving ~73 KB free
+# against a 64 KB linear-memory page plus the module itself, and trapped with
+# "[trap] stack overflow". -Oz with LTO takes this app from 20.7 KB to 8.1 KB.
+set(WASM_COMPILER_ARGS --target=wasm32-wasip1 -mcpu=mvp -nostdlib -Oz -flto)
 
 # The FreeWili gives a WASM app exactly one 64 KB page for stack plus heap, so
 # these limits are hardware facts rather than preferences.
 #
-# Matches the vendor examples. The built module carries only ~630 bytes of
-# static data, so a 48 KB stack still leaves room inside the single page.
+# --export-all is replaced by an explicit list. It cost 2 KB of export section
+# and, worse, forced every symbol to be retained so nothing could be stripped.
+# The named set matches what the working hello.wasm exports, including "memory"
+# - the host reads string arguments out of the module's linear memory, so that
+# one is not optional.
+#
+# The stack is 16 KB rather than 48 KB. Nothing here recurses and the largest
+# frame is a 56-byte register blob, so the old figure was reserving most of the
+# page for nothing.
 set(WASM_LINKER_ARGS
     "-nostdlib"
     "-Wl,--no-entry"
-    "-Wl,--export-all"
+    "-Wl,--export=main"
+    "-Wl,--export-if-defined=__main_void"
+    "-Wl,--export-if-defined=__original_main"
+    "-Wl,--export-if-defined=__wasm_call_ctors"
+    "-Wl,--export-if-defined=__heap_base"
+    "-Wl,--export-if-defined=__data_end"
     "-Wl,--lto-O3"
-    "-Wl,-z,stack-size=49152"
+    "-Wl,-z,stack-size=16384"
     "-Wl,--initial-heap=0"
     "-Wl,--max-memory=65536"
     "-Wl,--initial-memory=65536"
@@ -78,6 +94,7 @@ add_executable(${PROJECT_NAME}
     src/cc1101.cpp
     src/df.cpp
     src/ui.cpp
+    src/wasm_rt.cpp
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE src)
@@ -94,7 +111,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 # device that draws nothing can still say how far it got. See tools/probe.cpp.
 # Minimal display sanity check: one panel, one string. Known to run on
 # hardware, so it doubles as the reference every other target is matched to.
-add_executable(hello tools/hello.cpp)
+add_executable(hello tools/hello.cpp src/wasm_rt.cpp)
 target_link_libraries(hello PUBLIC fwwasm)
 target_compile_options(hello PRIVATE ${WARNING_ARGS} ${WASM_COMPILER_ARGS})
 target_link_options(hello PRIVATE ${WASM_LINKER_ARGS})
@@ -102,7 +119,7 @@ set_target_properties(hello PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
-add_executable(probe tools/probe.cpp)
+add_executable(probe tools/probe.cpp src/wasm_rt.cpp)
 target_link_libraries(probe PUBLIC fwwasm)
 target_compile_options(probe PRIVATE ${WARNING_ARGS} ${WASM_COMPILER_ARGS})
 target_link_options(probe PRIVATE ${WASM_LINKER_ARGS})
@@ -119,7 +136,7 @@ foreach(step RANGE 1 10)
     else()
         set(name step${step})
     endif()
-    add_executable(${name} tools/step.cpp)
+    add_executable(${name} tools/step.cpp src/wasm_rt.cpp)
     target_link_libraries(${name} PUBLIC fwwasm)
     target_compile_definitions(${name} PRIVATE STEP=${step})
     target_compile_options(${name} PRIVATE ${WARNING_ARGS} ${WASM_COMPILER_ARGS})
@@ -135,7 +152,7 @@ endforeach()
 # firmware does not provide. See tools/imports.cpp.
 set(IMPORT_TIER_TARGETS "")
 foreach(tier 1 2 3 4 5 11 12 13)
-    add_executable(imports${tier} tools/imports.cpp)
+    add_executable(imports${tier} tools/imports.cpp src/wasm_rt.cpp)
     target_link_libraries(imports${tier} PUBLIC fwwasm)
     target_compile_definitions(imports${tier} PRIVATE TIER=${tier})
     target_compile_options(imports${tier} PRIVATE ${WARNING_ARGS} ${WASM_COMPILER_ARGS})
@@ -150,7 +167,7 @@ endforeach()
 # See tools/limits.cpp.
 set(LIMIT_TARGETS "")
 foreach(lim RANGE 1 4)
-    add_executable(limits${lim} tools/limits.cpp)
+    add_executable(limits${lim} tools/limits.cpp src/wasm_rt.cpp)
     target_link_libraries(limits${lim} PUBLIC fwwasm)
     target_compile_definitions(limits${lim} PRIVATE LIMIT=${lim})
     target_compile_options(limits${lim} PRIVATE ${WARNING_ARGS} ${WASM_COMPILER_ARGS})
