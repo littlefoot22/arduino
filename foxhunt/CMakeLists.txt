@@ -146,11 +146,26 @@ foreach(tier 1 2 3 4 5 11 12 13)
     list(APPEND IMPORT_TIER_TARGETS imports${tier})
 endforeach()
 
+# Structural probes: how many panels and controls this firmware accepts.
+# See tools/limits.cpp.
+set(LIMIT_TARGETS "")
+foreach(lim RANGE 1 4)
+    add_executable(limits${lim} tools/limits.cpp)
+    target_link_libraries(limits${lim} PUBLIC fwwasm)
+    target_compile_definitions(limits${lim} PRIVATE LIMIT=${lim})
+    target_compile_options(limits${lim} PRIVATE ${WARNING_ARGS} ${WASM_COMPILER_ARGS})
+    target_link_options(limits${lim} PRIVATE ${WASM_LINKER_ARGS})
+    set_target_properties(limits${lim} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+    )
+    list(APPEND LIMIT_TARGETS limits${lim})
+endforeach()
+
 # Assert no post-MVP feature crept into any object. A module declaring one is
 # rejected by the device silently, so this has to be caught at build time.
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
-    foreach(target foxhunt hello probe ${IMPORT_TIER_TARGETS} ${STEP_TARGETS})
+    foreach(target foxhunt hello probe ${IMPORT_TIER_TARGETS} ${STEP_TARGETS} ${LIMIT_TARGETS})
         add_custom_command(TARGET ${target} POST_BUILD
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tools/verify_mvp.py

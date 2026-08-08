@@ -119,10 +119,18 @@ constexpr int kNumberFont = 3;
 
 // -------------------------------------------------------- control indices ---
 
+// Control indices are kept low, contiguous and few.
+//
+// The first version of this file numbered them sparsely, with the band scan
+// reaching index 36 and the rose holding twenty controls on one panel. The app
+// did not draw. Every vendor example stays under ten, so a fixed-size per-panel
+// array in the firmware is the likely explanation. Nothing below exceeds
+// twelve controls on a panel or an index of eleven.
+
 enum SelectControl : int {
     kSelTitle = 0,
-    kSelFirstRow = 1,  // five rows follow
-    kSelNote = 8,
+    kSelFirstRow = 1,  // five rows follow: 1-5
+    kSelNote = 6,
 };
 
 enum HuntControl : int {
@@ -141,14 +149,15 @@ enum RoseControl : int {
     kRoseBearing = 1,
     kRoseDetail = 2,
     kRoseHint = 3,
-    kRoseFirstDot = 8,  // sixteen dots follow
+    kRoseFirstDot = 4,  // eight dots follow: 4-11
 };
 
 enum ScanControl : int {
     kScanTitle = 0,
-    kScanFirstLabel = 1,   // five labels
-    kScanFirstBar = 16,    // five bargraphs
-    kScanFirstValue = 32,  // five readouts
+    // One text control per row carries the fox name and its reading together,
+    // rather than two, which halves the control count on this panel.
+    kScanFirstRow = 1,  // five rows: 1-5
+    kScanFirstBar = 6,  // five bargraphs: 6-10
 };
 
 /// Center and radius of the compass rose.
@@ -254,12 +263,10 @@ void build_all() {
                    "BAND SCAN");
     for (int i = 0; i < kFoxCount; ++i) {
         const int y = 44 + (i * 34);
-        addControlText(kPanelScan, kScanFirstLabel + i, 8, y, kMono, kTextRow, kWhite.r, kWhite.g,
+        addControlText(kPanelScan, kScanFirstRow + i, 8, y, kMono, kTextRow, kWhite.r, kWhite.g,
                        kWhite.b, kFoxes[i].name);
-        addControlBargraph(kPanelScan, kScanFirstBar + i, 1, 92, y, 156, 20, 0, 100, kGreen.r,
+        addControlBargraph(kPanelScan, kScanFirstBar + i, 1, 150, y, 160, 20, 0, 100, kGreen.r,
                            kGreen.g, kGreen.b);
-        addControlText(kPanelScan, kScanFirstValue + i, 256, y, kMono, kTextRow, kDim.r, kDim.g,
-                       kDim.b, "--");
     }
     setPanelMenuText(kPanelScan, 0, "");
     setPanelMenuText(kPanelScan, 1, "");
@@ -384,13 +391,15 @@ void update_rose(const df::RotationScan& scan, uint32_t now_ms) {
 }
 
 void update_scan_row(int fox_index, int dbm, bool measured, int strongest_index) {
+    // Name, marker and reading share one control.
     g_buf.clear();
+    g_buf.str(fox_index == strongest_index ? "*" : " ").str(kFoxes[fox_index].name).ch(' ');
     if (measured) {
         g_buf.num(dbm);
     } else {
         g_buf.str("--");
     }
-    set_text(kPanelScan, kScanFirstValue + fox_index, g_buf.c_str());
+    set_text(kPanelScan, kScanFirstRow + fox_index, g_buf.c_str());
 
     // -110 dBm is about the CC1101's noise floor and -40 a very close beacon;
     // that span maps the whole approach onto the bar.
@@ -400,10 +409,6 @@ void update_scan_row(int fox_index, int dbm, bool measured, int strongest_index)
         pct = (pct < 0) ? 0 : ((pct > 100) ? 100 : pct);
     }
     setControlValue(kPanelScan, kScanFirstBar + fox_index, pct);
-
-    g_buf.clear();
-    g_buf.str(fox_index == strongest_index ? "*" : " ").str(kFoxes[fox_index].name);
-    set_text(kPanelScan, kScanFirstLabel + fox_index, g_buf.c_str());
 }
 
 void update_leds(int percent) {

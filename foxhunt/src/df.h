@@ -11,9 +11,14 @@ namespace foxhunt::df {
 /// leaves enormous headroom.
 inline constexpr int kQ = 256;
 
-/// Sectors the rotation sweep is divided into: 16 gives 22.5 degrees each,
-/// which is about the resolution a body-shielded whip can actually resolve.
-inline constexpr int kRoseSectors = 16;
+/// Sectors the rotation sweep is divided into: 8 gives 45 degrees each.
+///
+/// This is not a precision instrument. A body-shielded whip produces a broad,
+/// shallow null, and the operator is turning by feel, so finer bins would
+/// invent resolution the method does not have. Eight also keeps the rose down
+/// to a modest number of on-screen controls, which matters on firmware that
+/// appears to limit how many a panel can hold.
+inline constexpr int kRoseSectors = 8;
 
 /// Returned by Meter::trend().
 enum class Trend : int8_t { kColder = -1, kFlat = 0, kWarmer = 1 };

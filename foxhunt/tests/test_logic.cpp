@@ -225,9 +225,8 @@ void test_rotation_scan() {
     scan.begin(0U, kDuration);
     CHECK(scan.active());
 
-    // Simulate a turn where the beacon is strongest a quarter of the way round,
-    // i.e. sector 4 of 16, which is 90 degrees off the starting heading.
-    constexpr int kPeakSector = 4;
+    // Simulate a turn where the beacon is strongest a quarter of the way round.
+    constexpr int kPeakSector = df::kRoseSectors / 4;
     for (uint32_t t = 0U; t <= kDuration; t += 100U) {
         const int sector =
             static_cast<int>((t * static_cast<uint32_t>(df::kRoseSectors)) / kDuration);
@@ -244,7 +243,7 @@ void test_rotation_scan() {
     CHECK(!scan.active());
     CHECK(scan.has_result());
     CHECK(scan.best_sector() == kPeakSector);
-    CHECK(scan.bearing_deg() == 90);
+    CHECK(scan.bearing_deg() == (kPeakSector * 360) / df::kRoseSectors);
     CHECK(scan.progress_pct(kDuration) == 100);
 
     // A pronounced peak must show real contrast.
@@ -287,12 +286,13 @@ void test_rotation_scan() {
 void test_rose_geometry() {
     using namespace foxhunt;
 
-    // Sector 0 points straight up, sector 4 right, 8 down, 12 left. Getting
-    // this wrong would draw a rose that rotates the bearing by a quadrant.
+    // Sector 0 points straight up, then a quarter turn clockwise each time:
+    // right, down, left. Getting this wrong rotates every bearing by a quadrant.
+    constexpr int q = df::kRoseSectors / 4;
     CHECK(df::kRoseOffsets[0].dx == 0 && df::kRoseOffsets[0].dy == -1000);
-    CHECK(df::kRoseOffsets[4].dx == 1000 && df::kRoseOffsets[4].dy == 0);
-    CHECK(df::kRoseOffsets[8].dx == 0 && df::kRoseOffsets[8].dy == 1000);
-    CHECK(df::kRoseOffsets[12].dx == -1000 && df::kRoseOffsets[12].dy == 0);
+    CHECK(df::kRoseOffsets[q].dx == 1000 && df::kRoseOffsets[q].dy == 0);
+    CHECK(df::kRoseOffsets[2 * q].dx == 0 && df::kRoseOffsets[2 * q].dy == 1000);
+    CHECK(df::kRoseOffsets[3 * q].dx == -1000 && df::kRoseOffsets[3 * q].dy == 0);
 
     // Every offset must sit on the unit circle, within rounding.
     for (int i = 0; i < df::kRoseSectors; ++i) {
