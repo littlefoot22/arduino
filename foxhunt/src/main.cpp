@@ -74,11 +74,13 @@ App g_app;
 /// unlike the screen these survive whatever the firmware is doing:
 ///
 ///   LED 0 white    main() entered
-///   LED 1 blue     select panel built
-///   LED 2 green    hunt panel built
-///   LED 3 yellow   rose panel built
-///   LED 4 magenta  scan panel built, build_all() complete
-///   LED 5 cyan     first panel shown, main loop reached
+///   LED 1 blue     addPanel returned
+///   LED 2 green    first text control returned
+///   LED 3 yellow   the five fox rows returned
+///   LED 4 magenta  the long note string returned
+///   LED 5 cyan     menu slots 0 and 1 returned
+///   LED 6 white    menu slots 2-4 returned
+///   LED 0 -> cyan  everything built and the loop is running
 ///   LED 6 red      pulsing heartbeat
 void stage_led(int index, int r, int g, int b) {
     setBoardLED(index, r, g, b, 60000, ledsimplevalue);
@@ -389,7 +391,9 @@ int main() {
     ui::build_all();
 
     enter_select();
-    stage_led(5, 0, 255, 255);
+    // build_all() owns LEDs 1-6 for this diagnostic run, so the "running"
+    // marker reuses LED 0, switching it from white to cyan.
+    stage_led(0, 0, 255, 255);
 
     while (!g_app.should_exit) {
         pump_events();
