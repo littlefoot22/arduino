@@ -52,4 +52,12 @@ void clear_leds();
 /// Writes `text` into a message line on the hunt panel.
 void set_hunt_status(const char* text);
 
+/// Shows the most recent unrecognised event code on the select panel.
+///
+/// The firmware sends events this app does not have names for, and the header
+/// documents a newer API than the board implements, so the numbering cannot be
+/// trusted to match. Printing the raw code is the only way to find out what
+/// they actually are.
+void set_select_debug(int last_event, int count);
+
 }  // namespace foxhunt::ui

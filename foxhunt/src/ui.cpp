@@ -201,7 +201,7 @@ const char* rose_glyph(int level_db, int weakest, int strongest, bool filled, bo
 
 void build_all() {
     // ---- fox select ----
-    addPanel(kPanelSelect, 1, 1, 0, 0, kBg.r, kBg.g, kBg.b, 1);
+    addPanel(kPanelSelect, 1, 0, 0, 0, kBg.r, kBg.g, kBg.b, 1);
 
     addControlText(kPanelSelect, kSelTitle, 8, 4, kProp, kTextTitle, kAmber.r, kAmber.g, kAmber.b,
                    "FOXHUNT  70cm");
@@ -222,7 +222,7 @@ void build_all() {
     setPanelMenuText(kPanelSelect, 4, "EXIT");
 
     // ---- hunt meter ----
-    addPanel(kPanelHunt, 1, 1, 0, 0, kBg.r, kBg.g, kBg.b, 1);
+    addPanel(kPanelHunt, 1, 0, 0, 0, kBg.r, kBg.g, kBg.b, 1);
     addControlText(kPanelHunt, kHuntFox, 8, 4, kProp, kTextTitle, kAmber.r, kAmber.g, kAmber.b,
                    "FOX");
     addControlText(kPanelHunt, kHuntFreq, 150, 10, kMono, kTextLabel, kDim.r, kDim.g, kDim.b, " ");
@@ -242,7 +242,7 @@ void build_all() {
     setPanelMenuText(kPanelHunt, 4, "EXIT");
 
     // ---- rotation rose ----
-    addPanel(kPanelRose, 1, 1, 0, 0, kBg.r, kBg.g, kBg.b, 1);
+    addPanel(kPanelRose, 1, 0, 0, 0, kBg.r, kBg.g, kBg.b, 1);
     addControlText(kPanelRose, kRoseTitle, 8, 4, kProp, kTextLabel, kAmber.r, kAmber.g, kAmber.b,
                    "ROTATION SCAN");
     for (int i = 0; i < df::kRoseSectors; ++i) {
@@ -263,7 +263,7 @@ void build_all() {
     setPanelMenuText(kPanelRose, 4, "EXIT");
 
     // ---- band scan ----
-    addPanel(kPanelScan, 1, 1, 0, 0, kBg.r, kBg.g, kBg.b, 1);
+    addPanel(kPanelScan, 1, 0, 0, 0, kBg.r, kBg.g, kBg.b, 1);
     addControlText(kPanelScan, kScanTitle, 8, 4, kProp, kTextTitle, kAmber.r, kAmber.g, kAmber.b,
                    "BAND SCAN");
     for (int i = 0; i < kFoxCount; ++i) {
@@ -355,6 +355,12 @@ void update_hunt(int fox_index, const df::Meter& meter, int gain_step, int bw_in
 }
 
 void set_hunt_status(const char* text) { set_text(kPanelHunt, kHuntStatus, text); }
+
+void set_select_debug(int last_event, int count) {
+    g_buf.clear();
+    g_buf.str("evt ").num(last_event).str("  x").num(count);
+    set_text(kPanelSelect, kSelNote, g_buf.c_str());
+}
 
 void update_rose(const df::RotationScan& scan, uint32_t now_ms) {
     const int best = scan.best_sector();

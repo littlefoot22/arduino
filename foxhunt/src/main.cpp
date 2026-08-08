@@ -76,6 +76,11 @@ struct App {
 
     Request pending = Request::kNone;
 
+    /// Most recent event that matched none of the button codes, and how many
+    /// such events have arrived.
+    int last_odd_event = -1;
+    int odd_events = 0;
+
     /// Band scan progress. The sweep runs one reading per main-loop pass rather
     /// than in a nested loop, which keeps the radio calls shallow and leaves
     /// the app responsive instead of frozen for the second and a half it takes.
@@ -398,6 +403,16 @@ void pump_events() {
     for (int drained = 0; drained < kMaxEventsPerPass && hasEvent() != 0; ++drained) {
         const int event = getEventData(data);
         flash_event_led(event);
+
+        // Surface anything outside the five button codes, with a count so a
+        // repeating event is distinguishable from a one-off.
+        if (event != FWGUI_EVENT_GRAY_BUTTON && event != FWGUI_EVENT_YELLOW_BUTTON &&
+            event != FWGUI_EVENT_GREEN_BUTTON && event != FWGUI_EVENT_BLUE_BUTTON &&
+            event != FWGUI_EVENT_RED_BUTTON) {
+            ++g_app.odd_events;
+            g_app.last_odd_event = event;
+            ui::set_select_debug(event, g_app.odd_events);
+        }
         switch (g_app.screen) {
             case Screen::kSelect:
                 handle_select_button(event);
