@@ -40,16 +40,17 @@ set(WARNING_ARGS
 # validation and never runs, with no error reported anywhere - a board that does
 # nothing at all, not even light an LED, is the symptom.
 #
-# Note there is deliberately no -mbulk-memory here even though the vendor
-# examples pass it. Measured on hardware: a bulk-memory module is rejected the
-# same silent way, while an otherwise identical pure-MVP module runs. Whatever
-# their SDK emitted, this firmware will not take it.
+# -mbulk-memory is left off as a precaution only. It is NOT known to break
+# anything: with --strip-all the feature declaration is removed anyway, and this
+# code emits no bulk-memory opcodes, so adding the flag produces a byte-identical
+# module. Kept off simply because nothing here needs it.
 #
-# -nostdlib is part of the same fix rather than an optimisation: wasi-sdk ships
-# a precompiled sysroot built with those same post-MVP features, and the linker
-# unions their feature flags into the output even when almost no libc is used.
-# This app calls none of it (all formatting is hand-rolled in ui.cpp), so
-# dropping the sysroot is what actually gets the feature list clean.
+# -nostdlib is the part that genuinely mattered: wasi-sdk ships
+# a precompiled sysroot built with those post-MVP features, and libc really does
+# emit the corresponding opcodes (memory.copy and friends behind memcpy), which
+# survive stripping. This app calls no libc at all - all formatting is
+# hand-rolled in ui.cpp - so dropping the sysroot removes those opcodes outright
+# and took foxhunt.wasm from 24K to 19K.
 #
 # The build asserts all of this - see the verify_mvp target below.
 set(WASM_COMPILER_ARGS --target=wasm32-wasip1 -mcpu=mvp -nostdlib -O3 -flto)

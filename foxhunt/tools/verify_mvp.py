@@ -16,10 +16,8 @@ Usage:  verify_mvp.py <file.obj|file.wasm> ...
 import pathlib
 import sys
 
-# Empty: this project targets the WebAssembly MVP exactly. bulk-memory is
-# deliberately absent - the vendor examples pass -mbulk-memory, but on this
-# hardware a bulk-memory module is rejected the same silent way, while an
-# otherwise identical pure-MVP module runs.
+# Empty: this project targets the WebAssembly MVP exactly. bulk-memory is not
+# known to be a problem on this hardware, it is simply not needed here.
 ALLOWED: frozenset[str] = frozenset()
 
 SECTION_NAME = b"target_features"
