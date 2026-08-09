@@ -43,6 +43,17 @@ constexpr int kRadio = 1;
 constexpr uint32_t kPeriodMs = 250U;
 constexpr int kBeatEvery = static_cast<int>(1000U / kPeriodMs);
 
+/// Re-open RX every three seconds, and fully flush every thirty.
+///
+/// Belt and braces alongside the MCSM registers above: if RadioLoadConfig is
+/// refused, those never take effect and the part still falls out of RX on its
+/// own. Reopening costs one call and puts it back. The full IDLE/RX flush is
+/// rarer because repeating that every few hundred milliseconds once hung the
+/// board, while doing it never at all left the receiver accumulating until it
+/// fell over - thirty seconds sits well clear of both.
+constexpr int kReopenEvery = 3 * kBeatEvery;
+constexpr int kFlushEvery = 30 * kBeatEvery;
+
 constexpr int kBoardLeds = 7;
 
 constexpr int kCtlName = 0;
@@ -59,18 +70,28 @@ void led(int index, int r, int g, int b, LEDManagerLEDMode mode) {
     setBoardLED(index, r / 5, g / 5, b / 5, 400, mode);
 }
 
-/// Writes just FREQ2, FREQ1 and FREQ0 as address/value pairs.
+/// Sets the frequency, and tells the receiver to stay in RX.
 ///
-/// The smallest thing that could possibly retune the part, and the only size
-/// with any evidence behind it.
+/// Ten bytes of address/value pairs. Still far below the fifty-six that
+/// hard-reset the board, and only a little above the six that step10 passed
+/// without trouble.
+///
+/// The two MCSM registers matter as much as the frequency here. By default the
+/// CC1101 leaves RX the moment it believes it has received something -
+/// RXOFF_MODE is IDLE - and once it is out of RX the RSSI register stops
+/// updating and simply holds its last value. That is exactly the symptom of a
+/// reading that moves for a while, settles, and never shifts again until the
+/// script is restarted.
 bool tune_once() {
     const uint32_t word = cc1101::freq_to_word(fox().freq_hz);
-    unsigned char config[6] = {
-        0x0D, static_cast<unsigned char>((word >> 16) & 0xFFU),
-        0x0E, static_cast<unsigned char>((word >> 8) & 0xFFU),
-        0x0F, static_cast<unsigned char>(word & 0xFFU),
+    unsigned char config[10] = {
+        0x0D, static_cast<unsigned char>((word >> 16) & 0xFFU),  // FREQ2
+        0x0E, static_cast<unsigned char>((word >> 8) & 0xFFU),   // FREQ1
+        0x0F, static_cast<unsigned char>(word & 0xFFU),          // FREQ0
+        0x16, 0x07,  // MCSM2: RX_TIME = 111, receive without timing out
+        0x17, 0x3C,  // MCSM1: RXOFF_MODE = 11, stay in RX afterwards
     };
-    return RadioLoadConfig(kRadio, config, 6) != 0;
+    return RadioLoadConfig(kRadio, config, 10) != 0;
 }
 
 /// Builds "446.025 MHz" without pulling in any of libc.
@@ -169,6 +190,15 @@ int main() {
         }
         if (exit_now) {
             break;
+        }
+
+        // Keep the receiver open. See kReopenEvery.
+        if ((beat % kFlushEvery) == 0 && beat != 0) {
+            RadioSetIdle(kRadio);
+            waitms(20);
+            RadioSetRx(kRadio);
+        } else if ((beat % kReopenEvery) == 0 && beat != 0) {
+            RadioSetRx(kRadio);
         }
 
         const int dbm = cc1101::normalize_rssi(RadioGetRSSI(kRadio));
