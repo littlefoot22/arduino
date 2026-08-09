@@ -38,21 +38,24 @@ using namespace foxhunt;
 
 constexpr int kRadio = 1;
 
-/// 4 Hz. Proven to run indefinitely by the hunt ladder, and the smoothing
-/// filter governs how fast the needle moves anyway.
-constexpr uint32_t kPeriodMs = 250U;
-constexpr int kBeatEvery = static_cast<int>(1000U / kPeriodMs);
-
-/// Re-open RX every three seconds, and fully flush every thirty.
+/// One measurement per second, each preceded by its own IDLE/RX cycle.
 ///
-/// Belt and braces alongside the MCSM registers above: if RadioLoadConfig is
-/// refused, those never take effect and the part still falls out of RX on its
-/// own. Reopening costs one call and puts it back. The full IDLE/RX flush is
-/// rarer because repeating that every few hundred milliseconds once hung the
-/// board, while doing it never at all left the receiver accumulating until it
-/// fell over - thirty seconds sits well clear of both.
-constexpr int kReopenEvery = 3 * kBeatEvery;
-constexpr int kFlushEvery = 30 * kBeatEvery;
+/// Measured on hardware: the reading only changed every thirty seconds, which
+/// was exactly the old full-flush interval. Calling RadioSetRx on a receiver
+/// that has stopped updating does nothing; only dropping to IDLE and back
+/// re-arms it. So the RSSI register carries one fresh value per RX entry, and
+/// a meter that updates needs a cycle per reading rather than a fast poll of a
+/// register that is not moving.
+///
+/// One second is the cautious end. Flushing every few hundred milliseconds hung
+/// this board once, so this sits several times clear of that. If it proves
+/// solid, kPeriodMs is the one number to lower.
+constexpr uint32_t kPeriodMs = 1000U;
+constexpr int kBeatEvery = 1;
+
+/// Settling time after re-entering RX, before the reading means anything.
+constexpr int kIdleSettleMs = 20;
+constexpr int kRxSettleMs = 60;
 
 constexpr int kBoardLeds = 7;
 
@@ -192,14 +195,11 @@ int main() {
             break;
         }
 
-        // Keep the receiver open. See kReopenEvery.
-        if ((beat % kFlushEvery) == 0 && beat != 0) {
-            RadioSetIdle(kRadio);
-            waitms(20);
-            RadioSetRx(kRadio);
-        } else if ((beat % kReopenEvery) == 0 && beat != 0) {
-            RadioSetRx(kRadio);
-        }
+        // Re-arm, settle, then read. The whole cycle is the measurement.
+        RadioSetIdle(kRadio);
+        waitms(kIdleSettleMs);
+        RadioSetRx(kRadio);
+        waitms(kRxSettleMs);
 
         const int dbm = cc1101::normalize_rssi(RadioGetRSSI(kRadio));
 
@@ -209,8 +209,11 @@ int main() {
             slow = sample;
             have = true;
         } else {
-            fast += (sample - fast) >> 2;
-            slow += (sample - slow) >> 5;
+            // Lighter smoothing than before. At four readings a second a heavy
+            // filter was free; at one, a shift of two would take four seconds
+            // to catch up with a signal that had already changed.
+            fast += (sample - fast) >> 1;
+            slow += (sample - slow) >> 3;
         }
         const int shown = static_cast<int>(fast / 256);
         const int pct = df::level_percent(shown);
